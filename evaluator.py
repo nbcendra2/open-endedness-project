@@ -2,50 +2,117 @@ import gymnasium as gym
 import minigrid
 from babyai_text.clean_lang_wrapper import BabyAITextCleanLangWrapper
 from agent.random_agent import RandomAgent
-from environments.env_wrapper import get_descriptions_missions, valid_actions_from_env
+from environments import make_env
 
+from typing import Any, Dict, List
+import json
 import os
-import csv
+from omegaconf import DictConfig, OmegaConf
 
-minigrid.register_minigrid_envs()
+# minigrid.register_minigrid_envs()
 
-def run(env_name="BabyAI-MixedTrainLocal-v0", seed=0, num_episodes=3, max_steps=64, out_csv="runs/rollout.csv"):
-    os.makedirs(os.path.dirname(out_csv), exist_ok=True)
+class Evaluator:
 
-    base_env = gym.make(env_name, num_dists=0)
-    env = BabyAITextCleanLangWrapper(base_env)
+    def __init__(self, config):
+        self.config = config
+        self.env_name = self.config.env.name
 
-    agent = RandomAgent(seed=seed)
+        self.env = make_env(
+            env_name=self.env_name,
+            gym_kwargs=OmegaConf.to_container(self.config.env.gym_kwargs, resolve=True),
+            invalid_action_mode=self.config.env.invalid_action_mode,
+            fallback_action=self.config.env.fallback_action,
+        )
+        self.seed = int(self.config.eval.seed)
+        self.num_episodes = int(self.config.eval.num_episodes)
+        self.max_steps = int(self.config.eval.max_steps_per_episode)
+        self.out_json = self.config.eval.out_json
 
-    with open(out_csv, "w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
-        w.writerow(["episode","step","mission","text_obs","action","reward","terminated","truncated","reason"])
+        self.agent = RandomAgent(seed=int(self.seed))
 
-        for ep in range(num_episodes):
-            obs, info = env.reset(seed=seed+ep)
-            agent.reset(seed=seed+ep)
+        # placholder for future memory implementation: 270226
+        self.memory = None
 
-            # mission: safest from wrapper stats
-            mission = get_descriptions_missions(obs,info)[0]
+    def run_episode(self, episode_idx):
+        """Run a single episode and return the results."""
 
-            for t in range(max_steps):
-                text_obs = get_descriptions_missions(obs,info)[1]
-                valid_actions = env.language_action_space
+        state = self.env.reset(seed = self.seed + episode_idx)
+        self.agent.reset(seed=self.seed + episode_idx)
 
-                out = agent.act(text_obs=text_obs, mission=mission, valid_actions=valid_actions, step_idx=t)
-                action = out["action"]
+        steps: List[Dict[str, Any]] = []
+        total_reward = 0.0
+        terminated = False
+        truncated = False
 
-                obs, reward, terminated, truncated, info = env.step(action)
+        for t in range(self.max_steps):
+            out = self.agent.act(
+                text_obs=state.text_obs,
+                mission=state.mission,
+                valid_actions=state.valid_actions,
+                step_idx=t,
+            )
+            proposed_action = str(out.get("action", ""))
 
-                w.writerow([ep, t, mission, text_obs, action, float(reward), terminated, truncated, out.get("reason","")])
+            step = self.env.step(proposed_action)
+            total_reward += step.reward
 
-                if terminated or truncated:
-                    break
+            steps.append(
+                {
+                    "episode": episode_idx,
+                    "step_idx": t,
+                    "mission": state.mission,
+                    "text_obs": state.text_obs,
+                    "valid_actions": state.valid_actions,
+                    "agent_output": {
+                        "action": proposed_action,
+                        "reason": out.get("reason", ""),
+                    },
+                    "action_used": step.action_used,
+                    "action_was_valid": step.action_was_valid,
+                    "reward": step.reward,
+                    "terminated": step.terminated,
+                    "truncated": step.truncated,
+                    "env_reason": step.reason,
+                }
+            )
+            state = step.state
+            terminated = step.terminated
+            truncated = step.truncated
+            if terminated or truncated:
+                break
 
-            print(f"ep={ep} progression={env.get_stats().get('progression')}")
+        return {
+            "episode": episode_idx,
+            "seed": self.seed + episode_idx,
+            "num_steps": len(steps),
+            "total_reward": total_reward,
+            "terminated": terminated,
+            "truncated": truncated,
+            "steps": steps,
+        }
+    def run(self):
+        out_dir = os.path.dirname(self.out_json)
 
-    env.close()
-    print(f"saved: {out_csv}")
+        if out_dir:
+            os.makedirs(out_dir,exist_ok=True)
+        episodes = [self.run_episode(ep) for ep in range(self.num_episodes)]
 
-if __name__:
-    run()
+        result = {
+            "env_name": self.env_name,
+            "num_episodes": self.num_episodes,
+            "max_steps": self.max_steps,
+            "episodes": episodes,
+        }
+
+        with open(self.out_json, "w", encoding="utf-8") as f:
+            json.dump(result, f, ensure_ascii=False, indent=2)
+
+        return result
+
+    def close(self) -> None:
+        self.env.close()
+
+if __name__ == "__main__":
+    cfg = OmegaConf.load("config/config.yaml")
+    evaluator = Evaluator(cfg)
+    evaluator.run()
