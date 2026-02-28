@@ -44,6 +44,8 @@ class Evaluator:
         terminated = False
         truncated = False
 
+        prev_step_result = None
+
         for t in range(self.max_steps):
             out = self.agent.act(
                 text_obs=state.text_obs,
@@ -51,10 +53,19 @@ class Evaluator:
                 valid_actions=state.valid_actions,
                 step_idx=t,
             )
+
+            # new addition for future memory implementation: 270226
+            # replace RandomAgent with MementoAgent with both no memory and memory support
+            # out = self.agent.act(state = state, prev_step_result=prev_step_result, memory)
+
             proposed_action = str(out.get("action", ""))
 
             step = self.env.step(proposed_action)
+            prev_step_result = step
             total_reward += step.reward
+
+            # add memory rewriting here in the future: 270226
+            # self.agent.observe(step) # add memory to JSON
 
             steps.append(
                 {
