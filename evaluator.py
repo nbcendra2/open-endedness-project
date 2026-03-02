@@ -4,6 +4,9 @@ from babyai_text.clean_lang_wrapper import BabyAITextCleanLangWrapper
 from agent.random_agent import RandomAgent
 from environments import make_env
 
+from agent.random_agent import RandomAgent
+from agent.text_memento_agent import TextMementoAgent  # NEW
+
 from typing import Any, Dict, List
 import json
 import os
@@ -12,7 +15,6 @@ from omegaconf import DictConfig, OmegaConf
 # minigrid.register_minigrid_envs()
 
 class Evaluator:
-
     def __init__(self, config):
         self.config = config
         self.env_name = self.config.env.name
@@ -28,9 +30,16 @@ class Evaluator:
         self.max_steps = int(self.config.eval.max_steps_per_episode)
         self.out_json = self.config.eval.out_json
 
-        self.agent = RandomAgent(seed=int(self.seed))
+        # NEW: Select agent based on config
+        if self.config.agent.type == "text_memento":
+            self.agent = TextMementoAgent(
+                archive_path=self.config.memory.path,
+                top_k=self.config.memory.retrieval_top_k,
+                seed=int(self.seed)
+            )
+        else:
+            self.agent = RandomAgent(seed=int(self.seed))
 
-        # placholder for future memory implementation: 270226
         self.memory = None
 
     def run_episode(self, episode_idx):
