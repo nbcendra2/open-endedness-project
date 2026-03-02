@@ -7,15 +7,16 @@ env:
 
 eval:
   seed: 0
-  num_episodes: 50  # Updated
+  num_episodes: 3
   max_steps_per_episode: 64
   out_json: "runs/rollout.json"
 
 agent:
-  type: "text_memento"  # Options: "random", "text_memento"
+  type: "random"
 
 memory:
   enabled: true
-  path: "data/memento_archive.json"
-  retrieval_top_k: 5
-  write_during_eval: false
+  path: "data/memento_memory.json"
+  retrieval_top_k: 3
+  write_during_eval: true
+
