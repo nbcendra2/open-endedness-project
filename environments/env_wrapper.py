@@ -34,7 +34,7 @@ class EnvWrapper:
         fallback_action: str = "go forward",
     ):
         minigrid.register_minigrid_envs()
-        kwargs = gym_kwargs or {"num_dists": 0}
+        kwargs = gym_kwargs if gym_kwargs is not None else {}
         base_env = gym.make(env_name, **kwargs)
         self.env = BabyAITextCleanLangWrapper(base_env)
         self.invalid_action_mode = invalid_action_mode

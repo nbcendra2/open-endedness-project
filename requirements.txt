@@ -1,5 +1,8 @@
 omegaconf>=2.3.0
 gymnasium
 pillow
-minigrid @ git+https://github.com/BartekCupial/Minigrid.git
+minigrid
+sentence-transformers
+numpy
+tqdm
 

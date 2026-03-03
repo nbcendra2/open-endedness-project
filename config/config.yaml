@@ -1,22 +1,20 @@
 env:
-  name: "BabyAI-MixedTrainLocal-v0"
-  gym_kwargs:
-    num_dists: 0
+  name: "BabyAI-GoToLocal-v0"
+  gym_kwargs: {}
   invalid_action_mode: "fallback"
   fallback_action: "go forward"
 
 eval:
   seed: 0
-  num_episodes: 3
+  num_episodes: 50  # Updated
   max_steps_per_episode: 64
   out_json: "runs/rollout.json"
 
 agent:
-  type: "random"
+  type: "text_memento"  # Options: "random", "text_memento"
 
 memory:
   enabled: true
-  path: "data/memento_memory.json"
-  retrieval_top_k: 3
-  write_during_eval: true
-
+  path: "data/memento_archive.json"
+  retrieval_top_k: 5
+  write_during_eval: false

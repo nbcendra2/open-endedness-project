@@ -39,7 +39,15 @@ class BabyAITextCleanLangWrapper(gym.Wrapper):
         def _form_prompt(description):
             return "\n".join([d.replace("You see ", "") for d in description])
 
-        prompt = _form_prompt(infos["descriptions"])
+        # FIX: Handle missing descriptions
+        descriptions = infos.get("descriptions", [])
+        
+        # If no descriptions, create a simple one from mission
+        if not descriptions:
+            mission = obs.get("mission", "unknown mission")
+            descriptions = [f"Mission: {mission}"]
+        
+        prompt = _form_prompt(descriptions)
         return prompt, image
 
     def reset(self, **kwargs):
