@@ -7,12 +7,12 @@ env:
 
 eval:
   seed: 0
-  num_episodes: 2
-  max_steps_per_episode: 10
+  num_episodes: 3
+  max_steps_per_episode: 20
   out_json: "runs/rollout.json"
 
 agent:
-  type: "base"
+  type: "memory"
 
 memory:
   enabled: true
@@ -22,5 +22,5 @@ memory:
 
 openai_model:
   name: "gpt-4o-mini"
-  temperature: 0.2
-  timeout: 10
+  temperature: 1.0
+  timeout: 120.0

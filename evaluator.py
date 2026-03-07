@@ -16,6 +16,9 @@ from datetime import datetime
 from pathlib import Path
 from tqdm import tqdm
 
+from agent import build_agent
+from agent.memory_agent import MemoryAgent
+
 # minigrid.register_minigrid_envs()
 
 class Evaluator:
@@ -37,28 +40,20 @@ class Evaluator:
 
         self.agent_type = self.config.agent.type
         self.agent = None
-
+        self.memory = None
         # openai model parameters
         self.model_name = self.config.openai_model.name
         self.temperature = self.config.openai_model.temperature
         self.timeout = self.config.openai_model.timeout
-
-        # placholder for future memory implementation: 270226
-        self.memory = None
 
     def run_episode(self, episode_idx):
         """Run a single episode and return the results."""
         state = self.env.reset(seed = self.seed + episode_idx)
         system_prompt = self.env.get_instruction_prompt(state.mission)
 
-        if self.agent_type == "random":
-            self.agent = RandomAgent(seed=self.seed)
-        elif self.agent_type == "base":
-            self.agent = BaseAgent(model = self.model_name, seed=self.seed, 
-                                   temperature=self.temperature, timeout=self.timeout,
-                                   system_prompt=system_prompt)
-
-        self.agent.reset(seed=self.seed + episode_idx)
+        # initialize agent based on agent_type in config
+        self.agent = self.build_agent(config = self.config, system_prompt=system_prompt)
+        self.agent.start_episode(episode_id=episode_idx, mission=state.mission, seed=self.seed + episode_idx)
 
         steps: List[Dict[str, Any]] = []
         total_reward = 0.0
@@ -75,13 +70,13 @@ class Evaluator:
                 step_idx=t,
             )
 
-            # new addition for future memory implementation: 270226
-            # replace RandomAgent with MementoAgent with both no memory and memory support
-            # out = self.agent.act(state = state, prev_step_result=prev_step_result, memory)
-
             proposed_action = str(out.get("action", ""))
 
             step = self.env.step(proposed_action)
+
+            # if memory exist record the step in memory
+            self.agent.observe_step(step_idx=t, prev_text_obs=state.text_obs,
+                    action=proposed_action, step_result=step)
             prev_step_result = step
             total_reward += step.reward
 
@@ -112,7 +107,7 @@ class Evaluator:
             truncated = step.truncated
             if terminated or truncated:
                 break
-
+        self.agent.end_episode(total_reward=total_reward, terminated=terminated)
         return {
             "episode": episode_idx,
             "seed": self.seed + episode_idx,

@@ -25,7 +25,7 @@ class LLMClient:
         response = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
-            temperature=temperature,
+            # temperature=temperature,
             timeout=timeout,
             response_format=action_json_schema(valid_actions),
         )

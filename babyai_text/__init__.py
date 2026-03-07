@@ -29,6 +29,13 @@ from .clean_lang_wrapper import BabyAITextCleanLangWrapper
 
 #     return instruction_prompt
 
+# Then choose exactly one valid action and return JSON only in this format:
+# {{
+#   "reason": "your reasoning in 10 words",
+#   "action": "YOUR CHOSEN ACTION"
+# }}
+# Do not output anything outside this JSON.
+
 ACTIONS = {
     "turn left": "turn to the left",
     "turn right": "turn to the right",
@@ -54,14 +61,9 @@ Tips:
 - You can only interact with an object that is directly in front of you.
 - Once the desired object you want to interact or pickup in front of you, you can use the 'toggle' action to interact with it.
 - It doesn't make sense to repeat the same action over and over if the observation doesn't change.
+- Avoid turn oscillation: if you just turned left, do not immediately turn right on unchanged observations (and vice versa).
+- When target orientation is ambiguous, commit to one turn direction for at least 2 steps unless the target becomes directly ahead.
 
-
-Then you must choose exactly one of the given actions and output it strictly in the following format: 
-{{\n'
-"reason": "your reasoning in 10 words",\n'
-"action": "YOUR CHOSEN ACTION"\n'
-}}\n'                       
-"Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outside the JSON."
 """.strip()
 
     return instruction_prompt

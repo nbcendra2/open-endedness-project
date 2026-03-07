@@ -85,4 +85,15 @@ class BaseAgent:
         """Reset the prompt builder"""
         if seed is not None:
             self.rng.seed(seed)
-        self.prompt_builder.reset()    
+        self.prompt_builder.reset()   
+
+    def start_episode(self, episode_id: int, mission: str, seed=None):
+        self.reset(seed=seed)
+
+    def observe_step(self, step_idx, prev_text_obs, action, step_result):
+        # no-op for non-memory agents
+        return None
+
+    def end_episode(self, total_reward: float, terminated: bool):
+        # no-op for non-memory agents
+        return None   
