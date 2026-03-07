@@ -36,16 +36,26 @@ class BaseAgent:
     def extract_action(self, response, valid_actions):
         if response is None:
             return None, "No response"
-        try:
-            parsed = json.loads(response)
-            action = parsed.get("action")
-            reason = parsed.get("reason")
+        
+        if isinstance(response, dict):
+            action = response.get("action")
+            reason = response.get("reason")
             if action not in valid_actions:
-                print(action)
                 return None, f"Invalid action proposed: {action}"
             return action, reason
-        except json.JSONDecodeError:
-            return None, "Invalid JSON format"
+        
+        if isinstance(response, str):
+            try:
+                parsed = json.loads(response)
+                action = parsed.get("action")
+                reason = parsed.get("reason")
+                if action not in valid_actions:
+                    return None, f"Invalid action proposed: {action}"
+                return action, reason
+            except json.JSONDecodeError:
+                return None, "Invalid JSON format"
+            
+        return None, f"Unsupported response type: {type(response).__name__}"
 
     def act(self, text_obs, mission, valid_actions, step_idx):
         self.prompt_builder.update_observation(
@@ -54,10 +64,12 @@ class BaseAgent:
             step_idx=step_idx,
         )
         messages = self.prompt_builder.build_messages(valid_actions)
-        response = self.llm.generate(
+        # use json response format to get structured output
+        response = self.llm.generate_action_structured(
             messages,
             temperature=self.temperature,
             timeout=self.timeout,
+            valid_actions=valid_actions
         )
         action, reason = self.extract_action(response, valid_actions)
         self.prompt_builder.update_reasoning(reason)

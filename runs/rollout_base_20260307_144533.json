@@ -1,0 +1,507 @@
+{
+  "env_name": "BabyAI-MixedTrainLocal-v0",
+  "num_episodes": 2,
+  "max_steps": 10,
+  "episodes": [
+    {
+      "episode": 0,
+      "seed": 0,
+      "num_steps": 10,
+      "total_reward": 0.0,
+      "terminated": false,
+      "truncated": false,
+      "steps": [
+        {
+          "episode": 0,
+          "step_idx": 0,
+          "mission": "put the green key next to the yellow key",
+          "text_obs": "a wall 6 steps forward\na wall 2 steps left\na yellow key 1 step left and 1 step forward\na green key 1 step right and 2 steps forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "pick up",
+            "reason": "Need to pick up the yellow key first."
+          },
+          "action_used": "pick up",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        },
+        {
+          "episode": 0,
+          "step_idx": 1,
+          "mission": "put the green key next to the yellow key",
+          "text_obs": "a wall 6 steps forward\na wall 2 steps left\na yellow key 1 step left and 1 step forward\na green key 1 step right and 2 steps forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "pick up",
+            "reason": "Yellow key is still in front, need to pick it."
+          },
+          "action_used": "pick up",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        },
+        {
+          "episode": 0,
+          "step_idx": 2,
+          "mission": "put the green key next to the yellow key",
+          "text_obs": "a wall 6 steps forward\na wall 2 steps left\na yellow key 1 step left and 1 step forward\na green key 1 step right and 2 steps forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "pick up",
+            "reason": "Yellow key is still in front, need to pick it."
+          },
+          "action_used": "pick up",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        },
+        {
+          "episode": 0,
+          "step_idx": 3,
+          "mission": "put the green key next to the yellow key",
+          "text_obs": "a wall 6 steps forward\na wall 2 steps left\na yellow key 1 step left and 1 step forward\na green key 1 step right and 2 steps forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "pick up",
+            "reason": "Yellow key is still in front, need to pick it."
+          },
+          "action_used": "pick up",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        },
+        {
+          "episode": 0,
+          "step_idx": 4,
+          "mission": "put the green key next to the yellow key",
+          "text_obs": "a wall 6 steps forward\na wall 2 steps left\na yellow key 1 step left and 1 step forward\na green key 1 step right and 2 steps forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "pick up",
+            "reason": "Yellow key is still in front, need to pick it."
+          },
+          "action_used": "pick up",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        },
+        {
+          "episode": 0,
+          "step_idx": 5,
+          "mission": "put the green key next to the yellow key",
+          "text_obs": "a wall 6 steps forward\na wall 2 steps left\na yellow key 1 step left and 1 step forward\na green key 1 step right and 2 steps forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "turn left",
+            "reason": "Repeated actions are ineffective; need to change approach."
+          },
+          "action_used": "turn left",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        },
+        {
+          "episode": 0,
+          "step_idx": 6,
+          "mission": "put the green key next to the yellow key",
+          "text_obs": "a wall 2 steps forward\na wall 1 step left\na yellow key 1 step right and 1 step forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "pick up",
+            "reason": "Need to pick up the yellow key now."
+          },
+          "action_used": "pick up",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        },
+        {
+          "episode": 0,
+          "step_idx": 7,
+          "mission": "put the green key next to the yellow key",
+          "text_obs": "a wall 2 steps forward\na wall 1 step left\na yellow key 1 step right and 1 step forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "pick up",
+            "reason": "Yellow key is still in front, need to pick it."
+          },
+          "action_used": "pick up",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        },
+        {
+          "episode": 0,
+          "step_idx": 8,
+          "mission": "put the green key next to the yellow key",
+          "text_obs": "a wall 2 steps forward\na wall 1 step left\na yellow key 1 step right and 1 step forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "pick up",
+            "reason": "Yellow key is still in front, need to pick it."
+          },
+          "action_used": "pick up",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        },
+        {
+          "episode": 0,
+          "step_idx": 9,
+          "mission": "put the green key next to the yellow key",
+          "text_obs": "a wall 2 steps forward\na wall 1 step left\na yellow key 1 step right and 1 step forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "pick up",
+            "reason": "Yellow key is still in front, need to pick it."
+          },
+          "action_used": "pick up",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        }
+      ]
+    },
+    {
+      "episode": 1,
+      "seed": 1,
+      "num_steps": 10,
+      "total_reward": 0.0,
+      "terminated": false,
+      "truncated": false,
+      "steps": [
+        {
+          "episode": 1,
+          "step_idx": 0,
+          "mission": "put the purple ball next to the yellow ball",
+          "text_obs": "a wall 1 step left\na purple ball 4 steps forward\na yellow ball 3 steps right and 4 steps forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "go forward",
+            "reason": "Need to move towards the purple ball directly ahead."
+          },
+          "action_used": "go forward",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        },
+        {
+          "episode": 1,
+          "step_idx": 1,
+          "mission": "put the purple ball next to the yellow ball",
+          "text_obs": "a wall 1 step left\na purple ball 3 steps forward\na yellow ball 3 steps right and 3 steps forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "go forward",
+            "reason": "Moving closer to the purple ball is necessary now."
+          },
+          "action_used": "go forward",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        },
+        {
+          "episode": 1,
+          "step_idx": 2,
+          "mission": "put the purple ball next to the yellow ball",
+          "text_obs": "a wall 1 step left\na purple ball 2 steps forward\na yellow ball 3 steps right and 2 steps forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "go forward",
+            "reason": "Approaching the purple ball requires another forward step."
+          },
+          "action_used": "go forward",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        },
+        {
+          "episode": 1,
+          "step_idx": 3,
+          "mission": "put the purple ball next to the yellow ball",
+          "text_obs": "a wall 1 step left\na purple ball 1 step forward\na yellow ball 3 steps right and 1 step forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "go forward",
+            "reason": "Need to reach the purple ball directly ahead."
+          },
+          "action_used": "go forward",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        },
+        {
+          "episode": 1,
+          "step_idx": 4,
+          "mission": "put the purple ball next to the yellow ball",
+          "text_obs": "a wall 1 step left\na purple ball 1 step forward\na yellow ball 3 steps right and 1 step forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "go forward",
+            "reason": "Still need to reach the purple ball ahead."
+          },
+          "action_used": "go forward",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        },
+        {
+          "episode": 1,
+          "step_idx": 5,
+          "mission": "put the purple ball next to the yellow ball",
+          "text_obs": "a wall 1 step left\na purple ball 1 step forward\na yellow ball 3 steps right and 1 step forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "go forward",
+            "reason": "Need to reach the purple ball directly ahead."
+          },
+          "action_used": "go forward",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        },
+        {
+          "episode": 1,
+          "step_idx": 6,
+          "mission": "put the purple ball next to the yellow ball",
+          "text_obs": "a wall 1 step left\na purple ball 1 step forward\na yellow ball 3 steps right and 1 step forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "go forward",
+            "reason": "Still need to reach the purple ball directly ahead."
+          },
+          "action_used": "go forward",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        },
+        {
+          "episode": 1,
+          "step_idx": 7,
+          "mission": "put the purple ball next to the yellow ball",
+          "text_obs": "a wall 1 step left\na purple ball 1 step forward\na yellow ball 3 steps right and 1 step forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "go forward",
+            "reason": "Need to reach the purple ball directly ahead."
+          },
+          "action_used": "go forward",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        },
+        {
+          "episode": 1,
+          "step_idx": 8,
+          "mission": "put the purple ball next to the yellow ball",
+          "text_obs": "a wall 1 step left\na purple ball 1 step forward\na yellow ball 3 steps right and 1 step forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "go forward",
+            "reason": "Still need to reach the purple ball directly ahead."
+          },
+          "action_used": "go forward",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        },
+        {
+          "episode": 1,
+          "step_idx": 9,
+          "mission": "put the purple ball next to the yellow ball",
+          "text_obs": "a wall 1 step left\na purple ball 1 step forward\na yellow ball 3 steps right and 1 step forward",
+          "valid_actions": [
+            "turn left",
+            "turn right",
+            "go forward",
+            "pick up",
+            "drop",
+            "toggle"
+          ],
+          "agent_output": {
+            "action": "go forward",
+            "reason": "Need to reach the purple ball directly ahead."
+          },
+          "action_used": "go forward",
+          "action_was_valid": true,
+          "reward": 0.0,
+          "terminated": false,
+          "truncated": false,
+          "env_reason": ""
+        }
+      ]
+    }
+  ]
+}

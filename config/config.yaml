@@ -8,7 +8,7 @@ env:
 eval:
   seed: 0
   num_episodes: 2
-  max_steps_per_episode: 64
+  max_steps_per_episode: 10
   out_json: "runs/rollout.json"
 
 agent:
