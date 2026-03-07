@@ -5,6 +5,7 @@ import gymnasium as gym
 import minigrid
 
 from babyai_text.clean_lang_wrapper import BabyAITextCleanLangWrapper
+from babyai_text import get_instruction_prompt as build_instruction_prompt
 
 @dataclass
 class EnvState:
@@ -31,7 +32,7 @@ class EnvWrapper:
         env_name: str = "BabyAI-MixedTrainLocal-v0",
         gym_kwargs: Optional[dict] = None,
         invalid_action_mode: str = "fallback",  # "strict" | "fallback"
-        fallback_action: str = "go forward",
+        fallback_action: str = "turn left",
     ):
         minigrid.register_minigrid_envs()
         kwargs = gym_kwargs or {"num_dists": 0}
@@ -61,6 +62,10 @@ class EnvWrapper:
     def reset(self, seed: Optional[int] = None) -> EnvState:
         obs, info = self.env.reset(seed=seed)
         return self._to_state(obs, info)
+
+    def get_instruction_prompt(self, mission: Optional[str] = None) -> str:
+        resolved_mission = mission
+        return build_instruction_prompt(self.env, mission=resolved_mission)
 
     def validate_action(self, action: str) -> tuple[str, bool, str]:
         a = (action or "").strip().lower()

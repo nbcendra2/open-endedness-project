@@ -1,13 +1,20 @@
+from unittest import result
+
 import gymnasium as gym
 import minigrid
 from babyai_text.clean_lang_wrapper import BabyAITextCleanLangWrapper
 from agent.random_agent import RandomAgent
+from agent.base import BaseAgent
 from environments import make_env
 
 from typing import Any, Dict, List
 import json
 import os
 from omegaconf import DictConfig, OmegaConf
+
+from datetime import datetime
+from pathlib import Path
+from tqdm import tqdm
 
 # minigrid.register_minigrid_envs()
 
@@ -28,15 +35,29 @@ class Evaluator:
         self.max_steps = int(self.config.eval.max_steps_per_episode)
         self.out_json = self.config.eval.out_json
 
-        self.agent = RandomAgent(seed=int(self.seed))
+        self.agent_type = self.config.agent.type
+        self.agent = None
+
+        # openai model parameters
+        self.model_name = self.config.openai_model.name
+        self.temperature = self.config.openai_model.temperature
+        self.timeout = self.config.openai_model.timeout
 
         # placholder for future memory implementation: 270226
         self.memory = None
 
     def run_episode(self, episode_idx):
         """Run a single episode and return the results."""
-
         state = self.env.reset(seed = self.seed + episode_idx)
+        system_prompt = self.env.get_instruction_prompt(state.mission)
+
+        if self.agent_type == "random":
+            self.agent = RandomAgent(seed=self.seed)
+        elif self.agent_type == "base":
+            self.agent = BaseAgent(model = self.model_name, seed=self.seed, 
+                                   temperature=self.temperature, timeout=self.timeout,
+                                   system_prompt=system_prompt)
+
         self.agent.reset(seed=self.seed + episode_idx)
 
         steps: List[Dict[str, Any]] = []
@@ -106,7 +127,10 @@ class Evaluator:
 
         if out_dir:
             os.makedirs(out_dir,exist_ok=True)
-        episodes = [self.run_episode(ep) for ep in range(self.num_episodes)]
+
+        episodes = []
+        for ep in tqdm(range(self.num_episodes), total=self.num_episodes, desc="Episodes"):
+            episodes.append(self.run_episode(ep))
 
         result = {
             "env_name": self.env_name,
@@ -114,8 +138,11 @@ class Evaluator:
             "max_steps": self.max_steps,
             "episodes": episodes,
         }
+        p = Path(self.out_json)  # e.g. runs/rollout.json
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out_path = p.with_name(f"{p.stem}_{self.agent_type}_{ts}{p.suffix}")
 
-        with open(self.out_json, "w", encoding="utf-8") as f:
+        with open(out_path, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
 
         return result
