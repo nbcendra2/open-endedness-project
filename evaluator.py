@@ -39,6 +39,7 @@ class Evaluator:
         self.out_json = self.config.eval.out_json
 
         self.agent_type = self.config.agent.type
+        self.build_agent = build_agent
         self.agent = None
         self.memory = None
         # openai model parameters
@@ -123,24 +124,33 @@ class Evaluator:
         if out_dir:
             os.makedirs(out_dir,exist_ok=True)
 
-        episodes = []
-        for ep in tqdm(range(self.num_episodes), total=self.num_episodes, desc="Episodes"):
-            episodes.append(self.run_episode(ep))
-
-        result = {
-            "env_name": self.env_name,
-            "num_episodes": self.num_episodes,
-            "max_steps": self.max_steps,
-            "episodes": episodes,
-        }
-        p = Path(self.out_json)  # e.g. runs/rollout.json
+        p = Path(self.out_json)
+        if p.suffix.lower() != ".jsonl":
+            p = p.with_suffix(".jsonl")
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         out_path = p.with_name(f"{p.stem}_{self.agent_type}_{ts}{p.suffix}")
 
         with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(result, f, ensure_ascii=False, indent=2)
+            for ep in tqdm(range(self.num_episodes), total=self.num_episodes, desc="Episodes"):
+                episode_result = self.run_episode(ep)
+                line = {
+                    "env_name": self.env_name,
+                    "agent_type": self.agent_type,
+                    "run_seed": self.seed,
+                    "max_steps": self.max_steps,
+                    "num_episodes": self.num_episodes,
+                    **episode_result,
+                }
+                json.dump(line, f, ensure_ascii=False)
+                f.write("\n")
 
-        return result
+        return {
+            "env_name": self.env_name,
+            "num_episodes": self.num_episodes,
+            "max_steps": self.max_steps,
+            "out_path": str(out_path),
+            "format": "jsonl",
+        }
 
     def close(self) -> None:
         self.env.close()

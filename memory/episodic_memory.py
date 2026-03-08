@@ -14,6 +14,7 @@ class EpisodicMemory:
     def __init__(self, path: str) -> None:
         self.path = path
         self.episodes: List[EpisodeMemory] = []
+        self._next_unsaved_idx = 0
         self.load()
 
     def add_episode(self, episode: EpisodeMemory) -> None:
@@ -23,27 +24,39 @@ class EpisodicMemory:
         return self.episodes
 
     def save(self) -> None:
+        if self._next_unsaved_idx >= len(self.episodes):
+            return
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
-        with open(self.path, "w", encoding="utf-8") as f:
-            json.dump([asdict(x) for x in self.episodes], f, ensure_ascii=False, indent=2)
+        with open(self.path, "a", encoding="utf-8") as f:
+            for episode in self.episodes[self._next_unsaved_idx :]:
+                json.dump(asdict(episode), f, ensure_ascii=False)
+                f.write("\n")
+        self._next_unsaved_idx = len(self.episodes)
 
     def load(self) -> None:
         if not os.path.exists(self.path):
             self.episodes = []
+            self._next_unsaved_idx = 0
             return
-        with open(self.path, "r", encoding="utf-8") as f:
-            raw = json.load(f)
+
         self.episodes = []
-        for item in raw if isinstance(raw, list) else []:
-            trajectory = [StepMemory(**s) for s in item.get("trajectory", [])]
-            self.episodes.append(
-                EpisodeMemory(
-                    episode_id=int(item.get("episode_id", 0)),
-                    mission=str(item.get("mission", "")),
-                    success=bool(item.get("success", False)),
-                    total_reward=float(item.get("total_reward", 0.0)),
-                    num_steps=int(item.get("num_steps", len(trajectory))),
-                    trajectory=trajectory,
-                    metadata=dict(item.get("metadata", {})),
-                )
-            )
+        with open(self.path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                item = json.loads(line)
+                if isinstance(item, dict):
+                    trajectory = [StepMemory(**s) for s in item.get("trajectory", [])]
+                    self.episodes.append(
+                        EpisodeMemory(
+                            episode_id=int(item.get("episode_id", 0)),
+                            mission=str(item.get("mission", "")),
+                            success=bool(item.get("success", False)),
+                            total_reward=float(item.get("total_reward", 0.0)),
+                            num_steps=int(item.get("num_steps", len(trajectory))),
+                            trajectory=trajectory,
+                            metadata=dict(item.get("metadata", {})),
+                        )
+                    )
+        self._next_unsaved_idx = len(self.episodes)

@@ -9,7 +9,6 @@ from memory.working_memory import WorkingMemory
 class MemoryManager:
     """
     High-level baseline memory coordinator.
-    Use this class from evaluator/agent code.
     """
 
     def __init__(self, episodic_path: str, retrieval_top_k: int = 3) -> None:
@@ -22,6 +21,7 @@ class MemoryManager:
         self.working.start_episode(episode_id=episode_id, mission=mission)
 
     def record_step(
+        
         self,
         step_idx: int,
         text_obs: str,
@@ -32,6 +32,10 @@ class MemoryManager:
         action_was_valid: bool = True,
         env_reason: str = "",
     ) -> None:
+        """
+        Record the step in the working memory. 
+        Update memory
+        """
         self.working.add_step(
             step_idx=step_idx,
             text_obs=text_obs,
@@ -55,12 +59,20 @@ class MemoryManager:
             num_steps=len(self.working.steps),
             trajectory=list(self.working.steps),
         )
+
+        # todo: add learn memory retrieval? 070326
+        # todo: QD memory retention 070323
+
         self.episodic.add_episode(ep)
         self.episodic.save()
         self.working.clear()
         return ep
 
     def retrieve(self, mission: str, text_obs: str, top_k: int | None = None) -> List[RetrievalHit]:
+        """
+        Retrieve relevant past steps as memory based on the current mission and text observation.
+        Top k retrieval
+        """
         k = self.retrieval_top_k if top_k is None else int(top_k)
         return self.retriever.retrieve_steps(
             query_mission=mission,
@@ -70,5 +82,8 @@ class MemoryManager:
         )
 
     def retrieve_as_text(self, mission: str, text_obs: str, top_k: int | None = None) -> str:
+        """
+        Builds top k RetrievalHit objects 
+        """
         hits = self.retrieve(mission=mission, text_obs=text_obs, top_k=top_k)
         return self.retriever.format_hits(hits)

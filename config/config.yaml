@@ -7,16 +7,16 @@ env:
 
 eval:
   seed: 0
-  num_episodes: 3
-  max_steps_per_episode: 20
-  out_json: "runs/rollout.json"
+  num_episodes: 2
+  max_steps_per_episode: 15
+  out_json: "runs/rollout.jsonl"
 
 agent:
   type: "memory"
 
 memory:
   enabled: true
-  path: "data/memento_memory.json"
+  path: "data/memory.jsonl"
   retrieval_top_k: 3
   write_during_eval: true
 
