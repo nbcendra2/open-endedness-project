@@ -2,6 +2,8 @@ import re
 from typing import List
 
 from memory.schemas import EpisodeMemory, RetrievalHit, StepMemory
+import numpy as np
+from sentence_transformers import SentenceTransformer
 
 
 class LexicalRetriever:
@@ -49,6 +51,66 @@ class LexicalRetriever:
                 )
         scored.sort(key=lambda x: x.score, reverse=True)
         return scored[:top_k]
+
+    @staticmethod
+    def format_hits(hits: List[RetrievalHit]) -> str:
+        if not hits:
+            return ""
+        lines = ["Relevant past experience:"]
+        for i, h in enumerate(hits, start=1):
+            lines.append(
+                f"{i}. ep={h.episode_id}, mission={h.mission}, obs={h.text_obs}, action={h.action}, reward={h.reward}"
+            )
+        return "\n".join(lines)
+
+
+class EmbeddingRetriever:
+    """
+    Retrieval using embedding cosine similarity.
+    """
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
+        self.model = SentenceTransformer(model_name)
+
+    def embed(self, text: str) -> np.ndarray:
+        return self.model.encode(text, normalize_embeddings=True)
+    
+    def score(self, query_emb: np.ndarray, cand_emb: np.ndarray) -> float:
+        # cosine similarity (since normalized)
+        return float(np.dot(query_emb, cand_emb))
+
+    def retrieve_steps(self,
+        query_mission: str,
+        query_text_obs: str,
+        episodes: List[EpisodeMemory],
+        top_k: int = 3)-> List[RetrievalHit]:
+        
+        query = f"{query_mission} {query_text_obs}"
+        query_emb = self.embed(query)
+
+        scored: List[RetrievalHit] = []
+        
+        for ep in episodes:
+            for step in ep.trajectory:
+                
+                cand = f"{step.mission} {step.text_obs} {step.action}"
+                cand_emb = self.embed(cand)
+                
+                s = self.score(query_emb, cand_emb) + (0.2 * step.reward)
+
+                scored.append(
+                    RetrievalHit(
+                        score=s,
+                        episode_id=step.episode_id,
+                        mission=step.mission,
+                        text_obs=step.text_obs,
+                        action=step.action,
+                        reward=step.reward,
+                    )
+                )
+        scored.sort(key=lambda x: x.score, reverse=True)
+        return scored[:top_k]
+
+
 
     @staticmethod
     def format_hits(hits: List[RetrievalHit]) -> str:
