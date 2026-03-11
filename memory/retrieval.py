@@ -2,6 +2,7 @@ import re
 from typing import List
 
 from memory.schemas import EpisodeMemory, RetrievalHit, StepMemory
+from sklearn.cluster import KMeans
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
@@ -88,6 +89,7 @@ class EmbeddingRetriever:
         query_emb = self.embed(query)
 
         scored: List[RetrievalHit] = []
+        embeddings = []
         
         for ep in episodes:
             for step in ep.trajectory:
@@ -107,8 +109,38 @@ class EmbeddingRetriever:
                         reward=step.reward,
                     )
                 )
-        scored.sort(key=lambda x: x.score, reverse=True)
-        return scored[:top_k]
+
+                embeddings.append(cand_emb)
+
+        if len(scored) == 0:
+            return []
+
+        N = min(len(scored), top_k * 10)
+        idx = np.argsort([-h.score for h in scored])[:N]
+
+        top_hits = [scored[i] for i in idx]
+        top_embs = np.array([embeddings[i] for i in idx])
+
+        if len(top_hits) <= top_k:
+            return top_hits
+
+        kmeans = KMeans(n_clusters=top_k, n_init=10)
+        labels = kmeans.fit_predict(top_embs)
+
+        diverse_hits = []
+
+        for cluster_id in range(top_k):
+            cluster_indices = [i for i, l in enumerate(labels) if l == cluster_id]
+            if not cluster_indices:
+                continue
+            best_idx = max(cluster_indices, key=lambda i: top_hits[i].score)
+            diverse_hits.append(top_hits[best_idx])
+
+
+
+        diverse_hits.sort(key=lambda x: x.score, reverse=True)
+
+        return diverse_hits[:top_k]
 
 
 
