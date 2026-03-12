@@ -27,17 +27,6 @@ class StepResult:
 
 
 class EnvWrapper:
-    # def __init__(
-    #     self,
-    #     env_name: str = "BabyAI-MixedTrainLocal-v0",
-    #     gym_kwargs: Optional[dict] = None,
-    #     invalid_action_mode: str = "fallback",  # "strict" | "fallback"
-    #     fallback_action: str = "turn left",
-    # ):
-    #     minigrid.register_minigrid_envs()
-    #     kwargs = gym_kwargs or {"num_dists": 0}
-    #     base_env = gym.make(env_name, **kwargs)
-    #     self.env = BabyAITextCleanLangWrapper(base_env)
     def __init__(self, env_name="BabyAI-MixedTrainLocal-v0", gym_kwargs=None, 
                  invalid_action_mode: str = "fallback", fallback_action: str = "turn left",):
         minigrid.register_minigrid_envs()
