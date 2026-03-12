@@ -23,8 +23,9 @@ class EpisodeMemory:
     success: bool
     total_reward: float
     num_steps: int
-    trajectory: List[StepMemory] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    summary: str = ""
+    strategy: str = ""
+    lessons: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -32,6 +33,8 @@ class RetrievalHit:
     score: float
     episode_id: int
     mission: str
-    text_obs: str
-    action: str
-    reward: float
+    success: bool
+    total_reward: float
+    summary: str = ""
+    strategy: str = ""
+    lesson: str = ""

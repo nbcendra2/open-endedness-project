@@ -17,7 +17,6 @@ from pathlib import Path
 from tqdm import tqdm
 
 from agent import build_agent
-from agent.memory_agent import MemoryAgent
 
 # minigrid.register_minigrid_envs()
 
@@ -38,23 +37,19 @@ class Evaluator:
         self.max_steps = int(self.config.eval.max_steps_per_episode)
         self.out_json = self.config.eval.out_json
 
-        self.agent_type = self.config.agent.type
-        self.build_agent = build_agent
-        self.agent = None
-        self.memory = None
+        self.agent_type = self.config.agent.name
         # openai model parameters
         self.model_name = self.config.openai_model.name
         self.temperature = self.config.openai_model.temperature
         self.timeout = self.config.openai_model.timeout
+        # build agent once; system_prompt updated per episode via start_episode
+        self.agent = build_agent(config=self.config, system_prompt=None)
 
     def run_episode(self, episode_idx):
         """Run a single episode and return the results."""
         state = self.env.reset(seed = self.seed + episode_idx)
         system_prompt = self.env.get_instruction_prompt(state.mission)
-
-        # initialize agent based on agent_type in config
-        self.agent = self.build_agent(config = self.config, system_prompt=system_prompt)
-        self.agent.start_episode(episode_id=episode_idx, mission=state.mission, seed=self.seed + episode_idx)
+        self.agent.start_episode(episode_id=episode_idx, mission=state.mission, seed=self.seed + episode_idx, system_prompt=system_prompt)
 
         steps: List[Dict[str, Any]] = []
         total_reward = 0.0
@@ -80,9 +75,6 @@ class Evaluator:
                     action=proposed_action, step_result=step)
             prev_step_result = step
             total_reward += step.reward
-
-            # add memory rewriting here in the future: 270226
-            # self.agent.observe(step) # add memory to JSON
 
             steps.append(
                 {

@@ -1,7 +1,7 @@
 import re
 from typing import List
 
-from memory.schemas import EpisodeMemory, RetrievalHit, StepMemory
+from memory.schemas import EpisodeMemory, RetrievalHit
 from sklearn.cluster import KMeans
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -9,7 +9,7 @@ from sentence_transformers import SentenceTransformer
 
 class LexicalRetriever:
     """
-    Baseline retrieval using token overlap.
+    Baseline retrieval using token overlap at episode level.
     """
 
     @staticmethod
@@ -25,7 +25,7 @@ class LexicalRetriever:
         union = len(q.union(c))
         return intersection / union
 
-    def retrieve_steps(
+    def retrieve_episodes(
         self,
         query_mission: str,
         query_text_obs: str,
@@ -35,21 +35,22 @@ class LexicalRetriever:
         query = f"{query_mission} {query_text_obs}"
         scored: List[RetrievalHit] = []
         for ep in episodes:
-            for step in ep.trajectory:
-                cand = f"{step.mission} {step.text_obs} {step.action}"
-                s = self.score(query, cand)
-                if s <= 0:
-                    continue
-                scored.append(
-                    RetrievalHit(
-                        score=s,
-                        episode_id=step.episode_id,
-                        mission=step.mission,
-                        text_obs=step.text_obs,
-                        action=step.action,
-                        reward=step.reward,
-                    )
+            ep_text = f"{ep.mission} {ep.summary} {ep.strategy} {' '.join(ep.lessons)}".strip()
+            s = self.score(query, ep_text)
+            if s <= 0:
+                continue
+            scored.append(
+                RetrievalHit(
+                    score=s,
+                    episode_id=ep.episode_id,
+                    mission=ep.mission,
+                    success=ep.success,
+                    total_reward=ep.total_reward,
+                    summary=ep.summary,
+                    strategy=ep.strategy,
+                    lesson=ep.lessons[0] if ep.lessons else "",
                 )
+            )
         scored.sort(key=lambda x: x.score, reverse=True)
         return scored[:top_k]
 
@@ -59,18 +60,27 @@ class LexicalRetriever:
             return ""
         lines = ["Relevant past experience:"]
         for i, h in enumerate(hits, start=1):
-            lines.append(
-                f"{i}. ep={h.episode_id}, mission={h.mission}, obs={h.text_obs}, action={h.action}, reward={h.reward}"
-            )
+            outcome = "success" if h.success else "failed"
+            parts = [f"ep={h.episode_id} ({outcome}, reward={h.total_reward})"]
+            if h.summary:
+                parts.append(h.summary)
+            if h.strategy:
+                parts.append(f"strategy: {h.strategy}")
+            if h.lesson:
+                parts.append(f"lesson: {h.lesson}")
+            lines.append(f"{i}. {', '.join(parts)}")
         return "\n".join(lines)
 
 
 class EmbeddingRetriever:
     """
-    Retrieval using embedding cosine similarity.
+    Retrieval using embedding cosine similarity at episode level.
     """
+    _MODEL_CACHE = {}
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
-        self.model = SentenceTransformer(model_name)
+        if model_name not in self._MODEL_CACHE:
+            self._MODEL_CACHE[model_name] = SentenceTransformer(model_name)
+        self.model = self._MODEL_CACHE[model_name]
 
     def embed(self, text: str) -> np.ndarray:
         return self.model.encode(text, normalize_embeddings=True)
@@ -79,38 +89,37 @@ class EmbeddingRetriever:
         # cosine similarity (since normalized)
         return float(np.dot(query_emb, cand_emb))
 
-    def retrieve_steps(self,
+    def retrieve_episodes(
+        self,
         query_mission: str,
         query_text_obs: str,
         episodes: List[EpisodeMemory],
-        top_k: int = 3)-> List[RetrievalHit]:
-        
+        top_k: int = 3,
+    ) -> List[RetrievalHit]:
         query = f"{query_mission} {query_text_obs}"
         query_emb = self.embed(query)
 
         scored: List[RetrievalHit] = []
-        embeddings = []
-        
+        embeddings: List[np.ndarray] = []
+
         for ep in episodes:
-            for step in ep.trajectory:
-                
-                cand = f"{step.mission} {step.text_obs} {step.action}"
-                cand_emb = self.embed(cand)
-                
-                s = self.score(query_emb, cand_emb) + (0.2 * step.reward)
+            ep_text = f"{ep.mission} {ep.summary} {ep.strategy} {' '.join(ep.lessons)}".strip()
+            ep_emb = self.embed(ep_text)
+            s = self.score(query_emb, ep_emb) + (0.1 * ep.total_reward)
 
-                scored.append(
-                    RetrievalHit(
-                        score=s,
-                        episode_id=step.episode_id,
-                        mission=step.mission,
-                        text_obs=step.text_obs,
-                        action=step.action,
-                        reward=step.reward,
-                    )
+            scored.append(
+                RetrievalHit(
+                    score=s,
+                    episode_id=ep.episode_id,
+                    mission=ep.mission,
+                    success=ep.success,
+                    total_reward=ep.total_reward,
+                    summary=ep.summary,
+                    strategy=ep.strategy,
+                    lesson=ep.lessons[0] if ep.lessons else "",
                 )
-
-                embeddings.append(cand_emb)
+            )
+            embeddings.append(ep_emb)
 
         if len(scored) == 0:
             return []
@@ -128,7 +137,6 @@ class EmbeddingRetriever:
         labels = kmeans.fit_predict(top_embs)
 
         diverse_hits = []
-
         for cluster_id in range(top_k):
             cluster_indices = [i for i, l in enumerate(labels) if l == cluster_id]
             if not cluster_indices:
@@ -136,13 +144,8 @@ class EmbeddingRetriever:
             best_idx = max(cluster_indices, key=lambda i: top_hits[i].score)
             diverse_hits.append(top_hits[best_idx])
 
-
-
         diverse_hits.sort(key=lambda x: x.score, reverse=True)
-
         return diverse_hits[:top_k]
-
-
 
     @staticmethod
     def format_hits(hits: List[RetrievalHit]) -> str:
@@ -150,7 +153,13 @@ class EmbeddingRetriever:
             return ""
         lines = ["Relevant past experience:"]
         for i, h in enumerate(hits, start=1):
-            lines.append(
-                f"{i}. ep={h.episode_id}, mission={h.mission}, obs={h.text_obs}, action={h.action}, reward={h.reward}"
-            )
+            outcome = "success" if h.success else "failed"
+            parts = [f"ep={h.episode_id} ({outcome}, reward={h.total_reward})"]
+            if h.summary:
+                parts.append(h.summary)
+            if h.strategy:
+                parts.append(f"strategy: {h.strategy}")
+            if h.lesson:
+                parts.append(f"lesson: {h.lesson}")
+            lines.append(f"{i}. {', '.join(parts)}")
         return "\n".join(lines)

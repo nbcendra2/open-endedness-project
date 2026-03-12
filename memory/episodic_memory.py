@@ -3,7 +3,7 @@ import os
 from dataclasses import asdict
 from typing import List
 
-from memory.schemas import EpisodeMemory, StepMemory
+from memory.schemas import EpisodeMemory
 
 
 class EpisodicMemory:
@@ -47,16 +47,16 @@ class EpisodicMemory:
                     continue
                 item = json.loads(line)
                 if isinstance(item, dict):
-                    trajectory = [StepMemory(**s) for s in item.get("trajectory", [])]
                     self.episodes.append(
                         EpisodeMemory(
                             episode_id=int(item.get("episode_id", 0)),
                             mission=str(item.get("mission", "")),
                             success=bool(item.get("success", False)),
                             total_reward=float(item.get("total_reward", 0.0)),
-                            num_steps=int(item.get("num_steps", len(trajectory))),
-                            trajectory=trajectory,
-                            metadata=dict(item.get("metadata", {})),
+                            num_steps=int(item.get("num_steps", 0)),
+                            summary=str(item.get("summary", "")),
+                            strategy=str(item.get("strategy", "")),
+                            lessons=list(item.get("lessons", [])),
                         )
                     )
         self._next_unsaved_idx = len(self.episodes)

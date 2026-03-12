@@ -1,24 +1,25 @@
 env:
-  name: "BabyAI-MixedTrainLocal-v0"
+  name: "BabyAI-MixedTrainLocal-v0/goto"
   gym_kwargs:
     num_dists: 0
   invalid_action_mode: "fallback"
-  fallback_action: "go forward"
+  fallback_action: "turn left"
 
 eval:
   seed: 0
   num_episodes: 2
-  max_steps_per_episode: 15
+  max_steps_per_episode: 5
   out_json: "runs/rollout.jsonl"
 
 agent:
-  type: "memory"
-
-memory:
-  enabled: true
-  path: "data/memory.jsonl"
-  retrieval_top_k: 3
-  write_during_eval: true
+  name: "base"  # memory, base, random
+  params:
+    memory_path: "data/memory11.jsonl"
+    retrieval_top_k: 3
+    retriever: "embedding"  # lexical, embedding
+    stuck_window: 3
+    reflection: true
+    planning: true
 
 openai_model:
   name: "gpt-4o-mini"

@@ -1,7 +1,7 @@
 import os
 import openai
 from dotenv import load_dotenv
-from llm.json_output_structure import action_json_schema
+from llm.json_output_structure import action_json_schema, planning_json_schema, reflection_json_schema
 import json
 
 load_dotenv()
@@ -25,9 +25,31 @@ class LLMClient:
         response = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
-            # temperature=temperature,
+            temperature=temperature,
             timeout=timeout,
             response_format=action_json_schema(valid_actions),
+        )
+        content = response.choices[0].message.content
+        return json.loads(content)
+
+    def generate_planning_structured(self, messages, temperature=0.3, timeout=15):
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=temperature,
+            timeout=timeout,
+            response_format=planning_json_schema(),
+        )
+        content = response.choices[0].message.content
+        return json.loads(content)
+
+    def generate_reflection(self, messages, temperature=0.3, timeout=30):
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=temperature,
+            timeout=timeout,
+            response_format=reflection_json_schema(),
         )
         content = response.choices[0].message.content
         return json.loads(content)

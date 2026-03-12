@@ -4,3 +4,6 @@ pillow
 minigrid @ git+https://github.com/BartekCupial/Minigrid.git
 openai
 python-dotenv
+sentence-transformers
+scikit-learn
+numpy

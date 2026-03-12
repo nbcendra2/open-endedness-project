@@ -27,16 +27,37 @@ class StepResult:
 
 
 class EnvWrapper:
-    def __init__(
-        self,
-        env_name: str = "BabyAI-MixedTrainLocal-v0",
-        gym_kwargs: Optional[dict] = None,
-        invalid_action_mode: str = "fallback",  # "strict" | "fallback"
-        fallback_action: str = "turn left",
-    ):
+    # def __init__(
+    #     self,
+    #     env_name: str = "BabyAI-MixedTrainLocal-v0",
+    #     gym_kwargs: Optional[dict] = None,
+    #     invalid_action_mode: str = "fallback",  # "strict" | "fallback"
+    #     fallback_action: str = "turn left",
+    # ):
+    #     minigrid.register_minigrid_envs()
+    #     kwargs = gym_kwargs or {"num_dists": 0}
+    #     base_env = gym.make(env_name, **kwargs)
+    #     self.env = BabyAITextCleanLangWrapper(base_env)
+    def __init__(self, env_name="BabyAI-MixedTrainLocal-v0", gym_kwargs=None, 
+                 invalid_action_mode: str = "fallback", fallback_action: str = "turn left",):
         minigrid.register_minigrid_envs()
         kwargs = gym_kwargs or {"num_dists": 0}
-        base_env = gym.make(env_name, **kwargs)
+
+        if env_name.startswith("BabyAI-MixedTrainLocal-v0/"):
+            base_id, goal = env_name.split("/", 1)
+            base_env = None
+            for _ in range(2000):
+                cand = gym.make(base_id, **kwargs)
+                kind = cand.unwrapped.action_kinds[0].replace(" ", "_")
+                if kind == goal:
+                    base_env = cand
+                    break
+                cand.close()
+            if base_env is None:
+                raise RuntimeError(f"Could not sample task '{goal}' from {base_id}")
+        else:
+            base_env = gym.make(env_name, **kwargs)
+
         self.env = BabyAITextCleanLangWrapper(base_env)
         self.invalid_action_mode = invalid_action_mode
         self.fallback_action = fallback_action

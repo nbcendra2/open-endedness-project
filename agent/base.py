@@ -87,8 +87,10 @@ class BaseAgent:
             self.rng.seed(seed)
         self.prompt_builder.reset()   
 
-    def start_episode(self, episode_id: int, mission: str, seed=None):
+    def start_episode(self, episode_id: int, mission: str, seed=None, system_prompt: str = None):
         self.reset(seed=seed)
+        if system_prompt is not None:
+            self.prompt_builder.update_instruction_prompt(system_prompt)
 
     def observe_step(self, step_idx, prev_text_obs, action, step_result):
         # no-op for non-memory agents
