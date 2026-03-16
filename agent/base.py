@@ -19,14 +19,14 @@ class BaseAgent:
         self.temperature = float(temperature)
         self.timeout = float(timeout)
         default_system_prompt = (""" 
-        Your goal is to make progress toward the given mission. First, think about the best course of action given the observations. 
-        Then you must choose exactly one of the given actions and output it strictly in the following format: 
-        {\n'
-        "reason": "your reasoning in 10 words",\n'
-        "action": "YOUR CHOSEN ACTION"\n'
-        }\n'                       
-        "Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outside the JSON."                        
-        """)
+Your goal is to make progress toward the given mission. First, think about the best course of action given the observations. 
+Then you must choose exactly one of the given actions and output it strictly in the following format: 
+{
+  "reason": "your reasoning in 10 words",
+  "action": "YOUR CHOSEN ACTION"
+}
+Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outside the JSON.
+""")
         self.prompt_builder = HistoryPromptBuilder(
             max_text_history=16,
             system_prompt=system_prompt if system_prompt is not None else default_system_prompt

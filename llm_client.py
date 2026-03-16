@@ -21,6 +21,7 @@ class LLMClient:
             timeout=timeout,
         )
         return response.choices[0].message.content
+
     def generate_action_structured(self, messages, valid_actions, temperature=0.2, timeout=10):
         response = self.client.chat.completions.create(
             model=self.model,

@@ -1,5 +1,3 @@
-from unittest import result
-
 import gymnasium as gym
 import minigrid
 from babyai_text.clean_lang_wrapper import BabyAITextCleanLangWrapper
