@@ -7,13 +7,14 @@ env:
 
 eval:
   seed: 0
-  num_episodes: 2
-  max_steps_per_episode: 5
+  num_episodes: 100
+  max_steps_per_episode: 30
   out_json: "runs/rollout.jsonl"
 
 agent:
   name: "base"  # memory, base, random
   params:
+    memory_type: "semantic_enriched"  # baseline, trajectory, reflection, enriched, fade_enriched, semantic_enriched
     memory_path: "data/memory11.jsonl"
     retrieval_top_k: 3
     retriever: "embedding"  # lexical, embedding

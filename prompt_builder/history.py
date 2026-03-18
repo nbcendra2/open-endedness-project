@@ -35,12 +35,11 @@ class HistoryPromptBuilder:
             })
         
     def update_action(self, action: str):
-        """Add an action to the prompt history, including reasoning if available."""
+        """Add an action to the prompt history (without storing reasoning)."""
         self._events.append(
             {
                 "type": "action",
                 "action": action,
-                "reasoning": self.previous_reasoning,
             }
         )
     
@@ -79,7 +78,6 @@ Valid Actions: {valid_actions}
                         "role": "assistant",
                         "content": f"""
 Action Taken: {event['action']}
-Reasoning: {event['reasoning']}
 """
                     }
                 )
