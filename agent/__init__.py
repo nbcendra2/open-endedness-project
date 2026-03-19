@@ -8,8 +8,11 @@ VALID_MEMORY_TYPES = {
     "trajectory",
     "reflection",
     "enriched",
+    "enriched_history",
     "fade_enriched",
+    "fade_enriched_history",
     "semantic_enriched",
+    "semantic_enriched_history",
 }
 
 

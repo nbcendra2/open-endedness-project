@@ -1,21 +1,21 @@
 env:
   name: "BabyAI-MixedTrainLocal-v0/goto"
   gym_kwargs:
-    num_dists: 0
+    num_dists: 1
   invalid_action_mode: "fallback"
   fallback_action: "turn left"
 
 eval:
   seed: 0
-  num_episodes: 100
-  max_steps_per_episode: 30
+  num_episodes: 10
+  max_steps_per_episode: 20
   out_json: "runs/rollout.jsonl"
 
 agent:
   name: "base"  # memory, base, random
   params:
-    memory_type: "semantic_enriched"  # baseline, trajectory, reflection, enriched, fade_enriched, semantic_enriched
-    memory_path: "data/memory11.jsonl"
+    memory_type: "enriched"  # baseline, trajectory, reflection, enriched, enriched_history, fade_enriched, fade_enriched_history, semantic_enriched, semantic_enriched_history
+    memory_path: "data/memory.jsonl"
     retrieval_top_k: 3
     retriever: "embedding"  # lexical, embedding
     stuck_window: 3
@@ -24,5 +24,5 @@ agent:
 
 openai_model:
   name: "gpt-4o-mini"
-  temperature: 1.0
+  temperature: 0
   timeout: 120.0

@@ -37,7 +37,7 @@ class Evaluator:
         self.max_steps = int(self.config.eval.max_steps_per_episode)
         self.out_json = self.config.eval.out_json
 
-        self.agent_type = self.config.agent.name
+        # self.agent_type = self.config.agent.name
         # openai model parameters
         self.model_name = self.config.openai_model.name
         self.temperature = self.config.openai_model.temperature
@@ -48,6 +48,7 @@ class Evaluator:
         self.memory_type = str(
             getattr(getattr(self.config.agent, "params", {}), "memory_type", "baseline")
         ).lower()
+        self.agent_type = self.memory_type
         # separate client for reflection calls
         self.reflection_llm = LLMClient(model=self.model_name)
 

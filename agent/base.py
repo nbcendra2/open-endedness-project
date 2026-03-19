@@ -136,6 +136,41 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
                 timeout=self.timeout,
                 valid_actions=valid_actions,
             )
+        elif self.memory_type == "enriched_history":
+            # Hybrid: trajectory prompt history + enriched memory block
+            facts = self._enriched_buffer[-self.MAX_ENRICHED_FACTS :]
+            enriched_lines = []
+            if facts:
+                enriched_lines.append("Enriched memory from previous steps:")
+                for fact in facts:
+                    span = fact.get("steps", "")
+                    text = fact.get("fact", "")
+                    enriched_lines.append(f"Steps {span}: \"{text}\"")
+            enriched_block = "\n".join(enriched_lines) if enriched_lines else ""
+
+            self.prompt_builder.update_observation(
+                text_obs=text_obs,
+                mission=mission,
+                step_idx=step_idx,
+            )
+            messages = self.prompt_builder.build_messages(valid_actions)
+
+            # Attach enriched memory to the latest user turn.
+            if enriched_block:
+                for i in range(len(messages) - 1, -1, -1):
+                    if messages[i].get("role") == "user":
+                        messages[i] = dict(messages[i])
+                        messages[i]["content"] = (
+                            f"{messages[i]['content']}\n\n--- Enriched memory ---\n{enriched_block}"
+                        )
+                        break
+
+            response = self.llm.generate_action_structured(
+                messages,
+                temperature=self.temperature,
+                timeout=self.timeout,
+                valid_actions=valid_actions,
+            )
         elif self.memory_type == "fade_enriched":
             # Fade-enriched: select top-N facts by strength v_i
             facts = [f for f in self._enriched_buffer if "v_i" in f]
@@ -185,6 +220,54 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
                 timeout=self.timeout,
                 valid_actions=valid_actions,
             )
+        elif self.memory_type == "fade_enriched_history":
+            # Hybrid: trajectory prompt history + fade-enriched memory block
+            facts = [f for f in self._enriched_buffer if "v_i" in f]
+            if facts:
+                facts_sorted = sorted(facts, key=lambda x: x.get("v_i", 0.0), reverse=True)
+                top_facts = facts_sorted[: self.MAX_ENRICHED_FACTS]
+                # update usage stats for selected facts
+                for f in top_facts:
+                    f["f_i"] = f.get("f_i", 0) + 1
+                    f["age_i"] = 0
+                    f["v_i"] = min(1.0, f.get("v_i", 0.0) + 0.1)
+                # for readability, keep chronological order by steps span
+                top_facts = sorted(top_facts, key=lambda x: str(x.get("steps", "")))
+            else:
+                top_facts = []
+
+            enriched_lines = []
+            if top_facts:
+                enriched_lines.append("Enriched memory from previous steps (fade-enriched):")
+                for fact in top_facts:
+                    span = fact.get("steps", "")
+                    text = fact.get("fact", "")
+                    enriched_lines.append(f"Steps {span}: \"{text}\"")
+            enriched_block = "\n".join(enriched_lines) if enriched_lines else ""
+
+            self.prompt_builder.update_observation(
+                text_obs=text_obs,
+                mission=mission,
+                step_idx=step_idx,
+            )
+            messages = self.prompt_builder.build_messages(valid_actions)
+
+            # Attach enriched memory to the latest user turn.
+            if enriched_block:
+                for i in range(len(messages) - 1, -1, -1):
+                    if messages[i].get("role") == "user":
+                        messages[i] = dict(messages[i])
+                        messages[i]["content"] = (
+                            f"{messages[i]['content']}\n\n--- Enriched memory ---\n{enriched_block}"
+                        )
+                        break
+
+            response = self.llm.generate_action_structured(
+                messages,
+                temperature=self.temperature,
+                timeout=self.timeout,
+                valid_actions=valid_actions,
+            )
         elif self.memory_type == "semantic_enriched":
             # Semantic-gated enriched: same structure as enriched, but buffer only contains gated facts
             facts = self._enriched_buffer[-self.MAX_ENRICHED_FACTS :]
@@ -215,6 +298,41 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
                     ),
                 },
             ]
+            response = self.llm.generate_action_structured(
+                messages,
+                temperature=self.temperature,
+                timeout=self.timeout,
+                valid_actions=valid_actions,
+            )
+        elif self.memory_type == "semantic_enriched_history":
+            # Hybrid: trajectory prompt history + semantic-gated enriched memory block
+            facts = self._enriched_buffer[-self.MAX_ENRICHED_FACTS :]
+            enriched_lines = []
+            if facts:
+                enriched_lines.append("Semantic-gated enriched memory from previous steps:")
+                for fact in facts:
+                    span = fact.get("steps", "")
+                    text = fact.get("fact", "")
+                    enriched_lines.append(f"Steps {span}: \"{text}\"")
+            enriched_block = "\n".join(enriched_lines) if enriched_lines else ""
+
+            self.prompt_builder.update_observation(
+                text_obs=text_obs,
+                mission=mission,
+                step_idx=step_idx,
+            )
+            messages = self.prompt_builder.build_messages(valid_actions)
+
+            # Attach enriched memory to the latest user turn.
+            if enriched_block:
+                for i in range(len(messages) - 1, -1, -1):
+                    if messages[i].get("role") == "user":
+                        messages[i] = dict(messages[i])
+                        messages[i]["content"] = (
+                            f"{messages[i]['content']}\n\n--- Enriched memory ---\n{enriched_block}"
+                        )
+                        break
+
             response = self.llm.generate_action_structured(
                 messages,
                 temperature=self.temperature,
@@ -259,8 +377,15 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
             self.prompt_builder.update_instruction_prompt(system_prompt)
 
     def observe_step(self, step_idx, prev_text_obs, action, step_result):
-        # For enriched / fade_enriched / semantic_enriched, maintain a non-overlapping window of the last k steps
-        if self.memory_type in {"enriched", "fade_enriched", "semantic_enriched"}:
+        # For enriched variants, maintain a non-overlapping window of the last k steps
+        if self.memory_type in {
+            "enriched",
+            "enriched_history",
+            "fade_enriched",
+            "fade_enriched_history",
+            "semantic_enriched",
+            "semantic_enriched_history",
+        }:
             obs_text = str(prev_text_obs)
             self._enrichment_step_buffer.append(
                 {
@@ -312,7 +437,7 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
                 if fact:
                     span = f"{window[0]['step']}-{window[2]['step']}"
                     entry = {"steps": span, "fact": fact}
-                    if self.memory_type == "fade_enriched":
+                    if self.memory_type in {"fade_enriched", "fade_enriched_history"}:
                         # Initialize FadeMem metadata
                         entry.update(
                             {
@@ -328,7 +453,7 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
                     if len(self._enriched_buffer) > self.MAX_ENRICHED_FACTS:
                         self._enriched_buffer.pop(0)
         # For fade_enriched, apply decay / promotion / pruning each step
-        if self.memory_type == "fade_enriched" and self._enriched_buffer:
+        if self.memory_type in {"fade_enriched", "fade_enriched_history"} and self._enriched_buffer:
             updated_buffer = []
             for fact in self._enriched_buffer:
                 v = float(fact.get("v_i", 1.0))
