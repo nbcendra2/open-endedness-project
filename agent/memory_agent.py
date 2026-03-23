@@ -34,13 +34,16 @@ REFLECTION_SYSTEM_PROMPT = (
 class MemoryAgent(BaseAgent):
     def __init__(self, model, seed, temperature, timeout, system_prompt, memory_path,
                  retrieval_top_k=3, retriever="embedding", stuck_window=3,
-                 reflection=True, planning=True):
+                 reflection=True, planning=True, provider="openai",
+                 memory_type="baseline"):
         super().__init__(
             model=model,
             seed=seed,
             temperature=temperature,
             timeout=timeout,
             system_prompt=system_prompt,
+            provider=provider,
+            memory_type=memory_type,
         )
         self.memory = MemoryManager(
             episodic_path=memory_path,

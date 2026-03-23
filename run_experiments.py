@@ -5,16 +5,17 @@ import os
 import glob
 from datetime import datetime
 
-CONFIG_PATH = "config\config.yaml"
+# CONFIG_PATH = "config\config.yaml"
+CONFIG_PATH = "config/config.yaml"
 # Feel free to change these!
-envs = ["BabyAI-MixedTrainLocal-v0/goto"]
+envs = ["BabyAI-MixedTrainLocal-v0/goto", "BabyAI-MixedTrainLocal-v0/pickup"]
 memory_types = [
     "baseline",
     "trajectory",
     "reflection"
 ]
-seeds = [0, 1]
-num_episodes = [10]
+seeds = [0]
+num_episodes = [5]
 max_steps_per_episode = [20]
 
 

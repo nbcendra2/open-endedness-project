@@ -1,10 +1,9 @@
 import os
 import json
 import re
-import openai
 from dotenv import load_dotenv
 
-from llm_client import LLMClient
+from llm import build_llm_client
 from prompt_builder.history import HistoryPromptBuilder
 
 import random as rng
@@ -28,9 +27,10 @@ class BaseAgent:
         timeout=10,
         system_prompt=None,
         memory_type: str = "baseline",
+        provider: str = "openai",
     ):
         self.rng = rng.Random(seed)
-        self.llm = LLMClient(model=model)
+        self.llm = build_llm_client(provider=provider, model=model)
         self.temperature = float(temperature)
         self.timeout = float(timeout)
         self.memory_type = str(memory_type)

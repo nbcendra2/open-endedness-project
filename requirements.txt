@@ -8,3 +8,4 @@ sentence-transformers
 scikit-learn
 numpy
 tqdm
+google-generativeai

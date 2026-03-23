@@ -15,7 +15,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from agent import build_agent
-from llm_client import LLMClient
+from llm import build_llm_client
 from memory.reflection_store import load_reflections, append_reflection
 
 # minigrid.register_minigrid_envs()
@@ -38,10 +38,11 @@ class Evaluator:
         self.out_json = self.config.eval.out_json
 
         # self.agent_type = self.config.agent.name
-        # openai model parameters
-        self.model_name = self.config.openai_model.name
-        self.temperature = self.config.openai_model.temperature
-        self.timeout = self.config.openai_model.timeout
+        # LLM parameters
+        self.provider = str(getattr(self.config.llm, "provider", "openai")).lower()
+        self.model_name = self.config.llm.name
+        self.temperature = self.config.llm.temperature
+        self.timeout = self.config.llm.timeout
         # build agent once; system_prompt updated per episode via start_episode
         self.agent = build_agent(config=self.config, system_prompt=None)
         # memory configuration
@@ -50,7 +51,7 @@ class Evaluator:
         ).lower()
         self.agent_type = self.memory_type
         # separate client for reflection calls
-        self.reflection_llm = LLMClient(model=self.model_name)
+        self.reflection_llm = build_llm_client(provider=self.provider, model=self.model_name)
 
     def run_episode(self, episode_idx):
         """Run a single episode and return the results."""

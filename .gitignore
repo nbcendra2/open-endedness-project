@@ -210,3 +210,6 @@ __marimo__/
 
 runs/
 data/
+
+__pycache__/
+*.py[cod]

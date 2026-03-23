@@ -34,23 +34,26 @@ def build_agent(config, system_prompt):
     if agent_name == "random":
         return RandomAgent(seed=int(config.eval.seed))
 
+    provider = str(getattr(config.llm, "provider", "openai")).lower()
+
     if agent_name == "base":
         return BaseAgent(
-            model=config.openai_model.name,
+            model=config.llm.name,
             seed=int(config.eval.seed),
-            temperature=float(config.openai_model.temperature),
-            timeout=float(config.openai_model.timeout),
+            temperature=float(config.llm.temperature),
+            timeout=float(config.llm.timeout),
             system_prompt=system_prompt,
             memory_type=memory_type,
+            provider=provider,
         )
 
     if agent_name == "memory":
         params = config.agent.params
         return MemoryAgent(
-            model=config.openai_model.name,
+            model=config.llm.name,
             seed=int(config.eval.seed),
-            temperature=float(config.openai_model.temperature),
-            timeout=float(config.openai_model.timeout),
+            temperature=float(config.llm.temperature),
+            timeout=float(config.llm.timeout),
             system_prompt=system_prompt,
             memory_path=str(params.memory_path),
             retrieval_top_k=int(params.retrieval_top_k),
@@ -58,6 +61,7 @@ def build_agent(config, system_prompt):
             stuck_window=int(params.stuck_window),
             reflection=bool(params.reflection),
             planning=bool(params.planning),
+            provider=provider,
             memory_type=memory_type,
         )
 
