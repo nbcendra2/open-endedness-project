@@ -30,7 +30,10 @@ class EnvWrapper:
     def __init__(self, env_name="BabyAI-MixedTrainLocal-v0", gym_kwargs=None, 
                  invalid_action_mode: str = "fallback", fallback_action: str = "turn left",):
         minigrid.register_minigrid_envs()
-        kwargs = gym_kwargs or {"num_dists": 0}
+        kwargs = dict(gym_kwargs) if gym_kwargs is not None else {}
+        # Some BabyAI environments do not accept num_dist(s) constructor kwargs.
+        kwargs.pop("num_dists", None)
+        kwargs.pop("num_dist", None)
 
         if env_name.startswith("BabyAI-MixedTrainLocal-v0/"):
             base_id, goal = env_name.split("/", 1)

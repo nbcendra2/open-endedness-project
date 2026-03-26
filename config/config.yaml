@@ -2,7 +2,7 @@ agent:
   name: base
   params:
     memory_path: data/memory.jsonl
-    memory_type: reflection
+    memory_type: baseline # # baseline, trajectory, reflection, enriched, enriched_history, fade_enriched, fade_enriched_history, semantic_enriched, semantic_enriched_history
     planning: true
     reflection: true
     retrieval_top_k: 3
@@ -10,17 +10,16 @@ agent:
     stuck_window: 3
 env:
   fallback_action: turn left
-  gym_kwargs:
-    num_dists: 1
+  gym_kwargs: {}
   invalid_action_mode: fallback
-  name: BabyAI-MixedTrainLocal-v0/pickup
+  name: BabyAI-PickupLoc-v0
 eval:
-  max_steps_per_episode: 20
-  num_episodes: 5
+  max_steps_per_episode: 2
+  num_episodes: 1
   out_json: runs/rollout.jsonl
   seed: 0
 llm:
-  name: deepseek-chat
-  provider: deepseek
+  name: gpt-4o-mini #gpt-4o-mini, gemini-2.5-flash.lite, deepseek-chat
+  provider: openai #openai, gemini, deepseek
   temperature: 0
   timeout: 120.0

@@ -25,10 +25,15 @@ class Evaluator:
     def __init__(self, config):
         self.config = config
         self.env_name = self.config.env.name
+        env_gym_kwargs = (
+            OmegaConf.to_container(self.config.env.gym_kwargs, resolve=True)
+            if "gym_kwargs" in self.config.env and self.config.env.gym_kwargs is not None
+            else {}
+        )
 
         self.env = make_env(
             env_name=self.env_name,
-            gym_kwargs=OmegaConf.to_container(self.config.env.gym_kwargs, resolve=True),
+            gym_kwargs=env_gym_kwargs,
             invalid_action_mode=self.config.env.invalid_action_mode,
             fallback_action=self.config.env.fallback_action,
         )
