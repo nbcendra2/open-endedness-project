@@ -1,28 +1,32 @@
+"""Functionality: Google Gemini with JSON output constrained by response_schema
+
+Accepts the same OpenAI-style message list (role and content) and converts it
+to Gemini user/model turns plus optional system_instruction
+"""
+
 import os
-import json
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-from llm.base_client import BaseLLMClient
+from llm_clients.base_client import BaseLLMClient
+from llm_clients.json_utils import ensure_action_in_valid, parse_maybe_markdown_json
 
 load_dotenv()
 
 
 class GeminiClient(BaseLLMClient):
-    """Google Gemini provider — uses native structured-output (response_schema)."""
+    """Google Gemini provider: native structured-output (response_schema)"""
 
     def __init__(self, model: str = "gemini-2.5-flash-lite"):
         self.model_name = model
         self.api_key = os.getenv("GEMINI_API_KEY")
         genai.configure(api_key=self.api_key)
 
-    # ── helpers ───────────────────────────────────────────────────
-
     @staticmethod
     def _convert_messages(messages: list):
-        """Split OpenAI-style messages into (system_instruction, contents).
+        """Split OpenAI-style messages into (system_instruction, contents)
 
-        Gemini uses 'user' / 'model' roles (not 'assistant').
+        Gemini uses 'user' / 'model' roles (not 'assistant')
         """
         system_instruction = None
         contents = []
@@ -38,21 +42,11 @@ class GeminiClient(BaseLLMClient):
         return system_instruction, contents
 
     def _make_model(self, system_instruction: str | None):
-        """Create a GenerativeModel with the given system instruction."""
+        """Create a GenerativeModel with the given system instruction"""
         return genai.GenerativeModel(
             model_name=self.model_name,
             system_instruction=system_instruction,
         )
-
-    @staticmethod
-    def _safe_parse(text: str) -> dict:
-        """Parse JSON, stripping markdown fences if present."""
-        text = text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-        return json.loads(text)
-
-    # ── interface ─────────────────────────────────────────────────
 
     def generate(self, messages, temperature=0.2, timeout=10):
         system_instruction, contents = self._convert_messages(messages)
@@ -68,6 +62,7 @@ class GeminiClient(BaseLLMClient):
         system_instruction, contents = self._convert_messages(messages)
         model = self._make_model(system_instruction)
 
+        # Plain JSON Schema object (not OpenAI's json_schema wrapper)
         schema = {
             "type": "object",
             "properties": {
@@ -86,11 +81,8 @@ class GeminiClient(BaseLLMClient):
             ),
             request_options={"timeout": timeout},
         )
-        result = self._safe_parse(response.text)
-        # fallback validation in case model ignores enum
-        if result.get("action") not in valid_actions:
-            result["action"] = valid_actions[0]
-        return result
+        result = parse_maybe_markdown_json(response.text)
+        return ensure_action_in_valid(result, valid_actions)
 
     def generate_planning_structured(self, messages, temperature=0.3, timeout=15):
         system_instruction, contents = self._convert_messages(messages)
@@ -113,7 +105,7 @@ class GeminiClient(BaseLLMClient):
             ),
             request_options={"timeout": timeout},
         )
-        return self._safe_parse(response.text)
+        return parse_maybe_markdown_json(response.text)
 
     def generate_reflection(self, messages, temperature=0.3, timeout=30):
         system_instruction, contents = self._convert_messages(messages)
@@ -141,4 +133,4 @@ class GeminiClient(BaseLLMClient):
             ),
             request_options={"timeout": timeout},
         )
-        return self._safe_parse(response.text)
+        return parse_maybe_markdown_json(response.text)

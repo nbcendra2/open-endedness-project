@@ -1,17 +1,16 @@
-# test_env.py
+"""Functionality: Smoke test that BabyAI registers and a single env step runs
+
+No agent or LLM; use this to verify gymnasium + minigrid install after setup
+"""
+
 import gymnasium as gym
-import minigrid  # <-- MUST IMPORT THIS!
 
-# Try without any wrappers or seeds
-env = gym.make("BabyAI-GoToLocal-v0")
-obs, info = env.reset()
-print("✅ Environment works!")
-print(f"Mission: {info.get('mission', 'N/A')}")
-env.close()
+# Registers BabyAI env ids with gymnasium; without this import gym.make may fail
+import minigrid
 
-# Try without any wrappers or seeds
+# Minimal run: one env, one reset, no wrappers or fixed seed
 env = gym.make("BabyAI-GoToLocal-v0")
-obs, info = env.reset()
-print("✅ Environment works!")
+_obs, info = env.reset()
+print("Environment works!")
 print(f"Mission: {info.get('mission', 'N/A')}")
 env.close()

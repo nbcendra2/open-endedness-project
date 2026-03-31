@@ -1,14 +1,17 @@
+"""Functionality: DeepSeek over the OpenAI-compatible HTTP API with JSON-only replies
+
+Supports json_object mode but not strict schemas like OpenAI; we append
+schema text to the last user message and validate or fix fields after parsing
+"""
+
 import os
-import json
 import openai
 from dotenv import load_dotenv
 
-from llm.base_client import BaseLLMClient
+from llm_clients.base_client import BaseLLMClient
+from llm_clients.json_utils import ensure_action_in_valid, parse_maybe_markdown_json
 
 load_dotenv()
-
-# DeepSeek supports {"type": "json_object"} but NOT strict JSON schema with
-# enum validation.  We inject the schema into the prompt and validate after.
 
 _ACTION_SCHEMA_HINT = (
     '\n\nYou MUST respond with a JSON object matching this exact schema:\n'
@@ -29,11 +32,12 @@ _REFLECTION_SCHEMA_HINT = (
     'Do not include any text outside the JSON object.'
 )
 
+# Only guarantees valid JSON, not keys or enum membership; see module docstring above
 _JSON_MODE = {"type": "json_object"}
 
 
 class DeepSeekClient(BaseLLMClient):
-    """DeepSeek provider — OpenAI-compatible API with prompt-based schema enforcement."""
+    """DeepSeek provider: OpenAI-compatible API with prompt-based schema hints"""
 
     def __init__(self, model: str = "deepseek-chat"):
         self.model = model
@@ -43,27 +47,15 @@ class DeepSeekClient(BaseLLMClient):
             base_url="https://api.deepseek.com",
         )
 
-    # ── helpers ───────────────────────────────────────────────────
-
     @staticmethod
     def _inject_hint(messages: list, hint: str) -> list:
-        """Append *hint* to the last user message (non-destructive copy)."""
+        """Append *hint* to the last user message (non-destructive copy)"""
         messages = [dict(m) for m in messages]
         for i in range(len(messages) - 1, -1, -1):
             if messages[i]["role"] == "user":
                 messages[i]["content"] = messages[i]["content"] + hint
                 break
         return messages
-
-    @staticmethod
-    def _safe_parse(content: str) -> dict:
-        """Parse JSON, stripping markdown fences if present."""
-        text = content.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-        return json.loads(text)
-
-    # ── interface ─────────────────────────────────────────────────
 
     def generate(self, messages, temperature=0.2, timeout=10):
         response = self.client.chat.completions.create(
@@ -84,11 +76,8 @@ class DeepSeekClient(BaseLLMClient):
             timeout=timeout,
             response_format=_JSON_MODE,
         )
-        result = self._safe_parse(response.choices[0].message.content)
-        # validate action is in valid set
-        if result.get("action") not in valid_actions:
-            result["action"] = valid_actions[0]
-        return result
+        result = parse_maybe_markdown_json(response.choices[0].message.content)
+        return ensure_action_in_valid(result, valid_actions)
 
     def generate_planning_structured(self, messages, temperature=0.3, timeout=15):
         messages = self._inject_hint(messages, _PLANNING_SCHEMA_HINT)
@@ -99,7 +88,7 @@ class DeepSeekClient(BaseLLMClient):
             timeout=timeout,
             response_format=_JSON_MODE,
         )
-        return self._safe_parse(response.choices[0].message.content)
+        return parse_maybe_markdown_json(response.choices[0].message.content)
 
     def generate_reflection(self, messages, temperature=0.3, timeout=30):
         messages = self._inject_hint(messages, _REFLECTION_SCHEMA_HINT)
@@ -110,4 +99,4 @@ class DeepSeekClient(BaseLLMClient):
             timeout=timeout,
             response_format=_JSON_MODE,
         )
-        return self._safe_parse(response.choices[0].message.content)
+        return parse_maybe_markdown_json(response.choices[0].message.content)
