@@ -23,15 +23,52 @@ from typing import Any, Dict, List
 import itertools
 import json
 import os
+import time
 from omegaconf import OmegaConf, DictConfig
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from tqdm import tqdm
 import argparse
 
 from agent import build_agent
 from postprocess_rollouts import episode_has_loop, is_episode_success
+
+
+def _format_duration(seconds: float) -> str:
+    """Short human-readable duration (e.g. 90.3 -> '1m 30s')."""
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    m, s = divmod(int(round(seconds)), 60)
+    if m < 60:
+        return f"{m}m {s}s"
+    h, m = divmod(m, 60)
+    return f"{h}h {m}m {s}s"
+
+
+def _mean(xs: list[float]) -> float:
+    return sum(xs) / len(xs)
+
+
+def _batch_eta_seconds(finished_durations: list[float], remaining_runs: int) -> float | None:
+    if remaining_runs <= 0 or not finished_durations:
+        return None
+    return _mean(finished_durations) * remaining_runs
+
+
+def _print_batch_progress_line(
+    batch_t0: float, run_durations: list[float], run_idx: int, total: int
+) -> None:
+    """After each sub-run: wall-clock elapsed + ETA from mean duration × remaining."""
+    elapsed_batch = time.perf_counter() - batch_t0
+    remaining = total - run_idx
+    eta_s = _batch_eta_seconds(run_durations, remaining)
+    parts = [f"elapsed {_format_duration(elapsed_batch)}"]
+    if eta_s is not None:
+        finish = datetime.now() + timedelta(seconds=eta_s)
+        parts.append(f"~{_format_duration(eta_s)} left (est.)")
+        parts.append(f"ETA ~{finish.strftime('%H:%M:%S')}")
+    print(f"    Batch: {'  |  '.join(parts)}")
 
 
 def _emit_rollout_summary(rollout_path: Path, config_yaml: str) -> dict[str, Any]:
@@ -326,6 +363,7 @@ class Evaluator:
 
 def _run_single(cfg: DictConfig, config_yaml: str = "config/config.yaml") -> None:
     """Default entry: one Evaluator, one rollout file, metrics summary on disk and stdout"""
+    t0 = time.perf_counter()
     evaluator = Evaluator(cfg)
     result = evaluator.run()
     evaluator.close()
@@ -334,6 +372,7 @@ def _run_single(cfg: DictConfig, config_yaml: str = "config/config.yaml") -> Non
     metrics = _emit_rollout_summary(out_path, config_yaml)
     summary_path = out_path.with_name(f"{out_path.stem}_summary.json")
     print(f"Wrote summary: {summary_path}")
+    print(f"Elapsed (rollout + summary): {_format_duration(time.perf_counter() - t0)}")
     _print_run_metrics(metrics)
 
 
@@ -416,6 +455,9 @@ def _run_batch(base_cfg: DictConfig, config_yaml: str = "config/config.yaml") ->
     print(f"  Max steps/episode: {base_cfg.eval.max_steps_per_episode}")
     print(f"  Seed             : {base_cfg.eval.seed}")
 
+    batch_t0 = time.perf_counter()
+    run_durations: list[float] = []
+
     for env_idx, env in enumerate(envs, 1):
         env_label = env.replace("BabyAI-", "").replace("-v0", "")
         print(f"\n{'='*64}")
@@ -434,6 +476,7 @@ def _run_batch(base_cfg: DictConfig, config_yaml: str = "config/config.yaml") ->
             })
             cfg = OmegaConf.merge(base_cfg, overrides)
 
+            run_t0 = time.perf_counter()
             try:
                 evaluator = Evaluator(cfg)
                 result = evaluator.run()
@@ -444,19 +487,31 @@ def _run_batch(base_cfg: DictConfig, config_yaml: str = "config/config.yaml") ->
                 sr = float(file_metrics.get("success_rate") or 0)
                 n = int(file_metrics.get("episodes") or 0)
                 s = int(file_metrics.get("successes") or 0)
-                print(f"    -> {sr:.1%} ({s}/{n})  |  {rollout_path.name}")
+                run_secs = time.perf_counter() - run_t0
+                print(
+                    f"    -> {sr:.1%} ({s}/{n})  |  {rollout_path.name}  "
+                    f"|  this run {_format_duration(run_secs)}"
+                )
                 env_results.append((memory_type, file_metrics))
                 completed += 1
             except Exception as exc:
                 msg = f"{type(exc).__name__}: {exc}"
                 failed.append((env, memory_type, msg))
                 env_results.append((memory_type, None))
-                print(f"    -> FAILED: {msg}")
+                run_secs = time.perf_counter() - run_t0
+                print(f"    -> FAILED: {msg}  |  this run {_format_duration(run_secs)}")
+            finally:
+                run_durations.append(time.perf_counter() - run_t0)
+
+            _print_batch_progress_line(batch_t0, run_durations, run_idx, total)
 
         _print_env_summary(env, env_results)
 
     print(f"\n{'='*64}")
-    print(f"Batch complete: {completed}/{total} succeeded, {len(failed)} failed")
+    print(
+        f"Batch complete: {completed}/{total} succeeded, {len(failed)} failed  "
+        f"|  total wall time {_format_duration(time.perf_counter() - batch_t0)}"
+    )
     if failed:
         print("Failed runs:")
         for env, mem, err in failed:
