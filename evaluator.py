@@ -432,15 +432,15 @@ def _run_batch(base_cfg: DictConfig, config_yaml: str = "config/config.yaml") ->
         "BabyAI-Unlock-v0",
         "BabyAI-Pickup-v0",
         "BabyAI-PutNext-v0",
-        "BabyAI-PutNextLocal-v0",
     ]
+    # Phase 1: five lighter memory modes. Run fade_enriched_history separately later
+    # with the same config (seed, episodes, max_steps) for comparability.
     memory_types = [
         "baseline",
         "trajectory",
         "reflection",
         "enriched",
         "enriched_history",
-        "fade_enriched_history",
     ]
 
     os.makedirs("runs", exist_ok=True)

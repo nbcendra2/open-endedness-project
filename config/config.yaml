@@ -8,7 +8,7 @@ env:
   invalid_action_mode: fallback
   name: BabyAI-PickupLoc-v0
 eval:
-  max_steps_per_episode: 100
+  max_steps_per_episode: 80
   num_episodes: 30
   out_json: runs/rollout.jsonl
   seed: 0
