@@ -431,7 +431,8 @@ def _run_batch(base_cfg: DictConfig, config_yaml: str = "config/config.yaml") ->
         "BabyAI-Open-v0",
         "BabyAI-Unlock-v0",
         "BabyAI-Pickup-v0",
-        "BabyAI-PutNext-v0",
+        # BabyAI-PutNext-v0 is not registered in current Minigrid; S5N2 matches common docs
+        "BabyAI-PutNextS5N2-v0",
     ]
     # Phase 1: five lighter memory modes. Run fade_enriched_history separately later
     # with the same config (seed, episodes, max_steps) for comparability.

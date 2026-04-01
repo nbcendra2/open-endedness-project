@@ -68,6 +68,22 @@ _VALID_MEMORY_TYPES = frozenset({
     "enriched", "enriched_history", "fade_enriched_history",
 })
 
+# Defaults merged with config `agent.params.fade_enriched_history` (fade mode only)
+_DEFAULT_FADE_ENRICHED_HISTORY_CFG: Dict[str, Any] = {
+    # "text": match trigger_condition to observation via token overlap (no embed(trigger))
+    # "embedding": cosine(trigger_embedding, obs_embedding) — requires embed(trigger)
+    "trigger_match": "text",
+    "trigger_text_threshold": 0.55,
+    # None = no cap (all candidates). 0 = skip LLM conflict on embedding candidates only.
+    "max_conflict_llm_candidates": None,
+    # Package A (API vs. responsiveness): intervals + fusion clustering
+    "priming_interval": 6,
+    "tag_batch_interval": 12,
+    "fusion_interval": 12,
+    "theta_fusion": 0.82,
+    "t_window": 10,
+}
+
 
 class BaseAgent:
     """Base class for LLM-based agents"""
@@ -138,6 +154,7 @@ class BaseAgent:
         system_prompt=None,
         memory_type: str = "baseline",
         provider: str = "openai",
+        fade_enriched_history_cfg: Dict[str, Any] | None = None,
     ):
         self.rng = rng.Random(seed)
         self.memory_type = str(memory_type)
@@ -156,6 +173,7 @@ class BaseAgent:
             self._enrichment_step_buffer: List[Dict[str, Any]] = []
             self._reflection_step_history: List[Dict[str, Any]] = []
             self._env_name: str = ""
+            self._fade_enriched_history_cfg: Dict[str, Any] = {}
             return
 
         self.llm = build_llm_client(provider=provider, model=model)
@@ -179,6 +197,32 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
         self._enrichment_step_buffer: List[Dict[str, Any]] = []
         self._reflection_step_history: List[Dict[str, Any]] = []
         self._env_name: str = ""
+
+        raw_fe = dict(fade_enriched_history_cfg or {})
+        self._fade_enriched_history_cfg: Dict[str, Any] = (
+            {**_DEFAULT_FADE_ENRICHED_HISTORY_CFG, **raw_fe}
+            if self.memory_type == "fade_enriched_history"
+            else {}
+        )
+        if self.memory_type == "fade_enriched_history":
+            fe = self._fade_enriched_history_cfg
+            fe["trigger_match"] = str(fe.get("trigger_match", "text")).lower()
+            if fe["trigger_match"] not in ("text", "embedding"):
+                fe["trigger_match"] = "text"
+            fe["trigger_text_threshold"] = float(fe.get("trigger_text_threshold", 0.55))
+            m = fe.get("max_conflict_llm_candidates")
+            fe["max_conflict_llm_candidates"] = None if m is None else int(m)
+            fe["priming_interval"] = max(1, int(fe.get("priming_interval", 6)))
+            fe["tag_batch_interval"] = max(1, int(fe.get("tag_batch_interval", 12)))
+            fe["fusion_interval"] = max(1, int(fe.get("fusion_interval", 12)))
+            fe["theta_fusion"] = float(fe.get("theta_fusion", 0.82))
+            fe["t_window"] = max(1, int(fe.get("t_window", 10)))
+            # Instance overrides so act/observe_step use config, not class constants only
+            self.FADE_PRIMING_INTERVAL = fe["priming_interval"]
+            self.FADE_TAG_BATCH_INTERVAL = fe["tag_batch_interval"]
+            self.FADE_FUSION_INTERVAL = fe["fusion_interval"]
+            self.FADE_THETA_FUSION = fe["theta_fusion"]
+            self.FADE_T_WINDOW = fe["t_window"]
 
         # Fade-enriched-only state (unused by other memory modes)
         if self.memory_type == "fade_enriched_history":
@@ -236,6 +280,15 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
         return BaseAgent._mission_conditioned_relevance(
             fact.get("fact", ""), mission, text_obs,
         )
+
+    @staticmethod
+    def _trigger_obs_token_overlap(trigger_condition: str, observation: str) -> float:
+        """Share of meaningful trigger tokens that appear in the observation, in [0, 1]."""
+        tt = BaseAgent._tokenize_for_memory(str(trigger_condition))
+        ot = BaseAgent._tokenize_for_memory(str(observation))
+        if not tt:
+            return 0.0
+        return min(1.0, len(tt & ot) / len(tt))
 
     @staticmethod
     def _facts_contradict(old_fact_text: str, new_fact_text: str) -> bool:
@@ -366,6 +419,14 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
             return
 
         candidates = self._find_conflict_candidates(new_emb)
+        max_k = self._fade_enriched_history_cfg.get("max_conflict_llm_candidates")
+        if max_k is not None:
+            if max_k <= 0:
+                candidates = []
+            else:
+                candidates.sort(key=lambda c: c.get("_sim", 0.0), reverse=True)
+                candidates = candidates[: int(max_k)]
+
         for cand in candidates:
             # Skip if already handled by rule-based path
             if cand.get("state") != "active":
@@ -723,41 +784,64 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
             fact["shield_active"] = True
             fact["trigger_condition"] = trigger_text
             fact["shield_start_step"] = step_idx
-            try:
-                fact["trigger_embedding"] = self.llm.embed(trigger_text)
-            except Exception:
-                fact["shield_active"] = False
-                fact.pop("trigger_condition", None)
+            if self._fade_enriched_history_cfg.get("trigger_match", "text") == "embedding":
+                try:
+                    fact["trigger_embedding"] = self.llm.embed(trigger_text)
+                except Exception:
+                    fact["shield_active"] = False
+                    fact.pop("trigger_condition", None)
+            else:
+                fact["trigger_embedding"] = None
 
-    def _check_triggers(self, obs_embedding: list | None, step_idx: int) -> None:
-        """Check if any shielded fact's trigger condition matches current observation.
+    def _check_triggers(
+        self,
+        obs_embedding: list | None,
+        step_idx: int,
+        obs_text: str = "",
+    ) -> None:
+        """Check if any shielded fact's trigger matches the current observation.
 
-        Uses cosine similarity between trigger embedding and the cached
-        observation embedding. Also enforces the safety-cap expiry.
+        With trigger_match=text: token overlap between trigger_condition and obs_text.
+        With trigger_match=embedding: cosine(trigger_embedding, obs_embedding).
         """
-        if obs_embedding is None:
-            return
+        use_text = self._fade_enriched_history_cfg.get("trigger_match", "text") == "text"
+        obs_str = str(obs_text)
 
         for f in self._enriched_buffer:
             if not f.get("shield_active", False):
                 continue
 
-            # Safety cap: expire shield after max steps
             shield_age = step_idx - f.get("shield_start_step", 0)
             if shield_age > self.FADE_TAG_MAX_SHIELD_STEPS:
                 f["shield_active"] = False
                 self._fade_tag_expire_count += 1
                 continue
 
-            trigger_emb = f.get("trigger_embedding")
-            if trigger_emb is None:
-                continue
-
-            sim = self._cosine_similarity(trigger_emb, obs_embedding)
-            if sim >= self.FADE_TAG_TRIGGER_THRESHOLD:
-                f["shield_active"] = False
-                f["v_i"] = min(1.0, f.get("v_i", 0.0) + self.FADE_TAG_TRIGGER_BOOST)
-                self._fade_tag_trigger_count += 1
+            if use_text:
+                tr = (f.get("trigger_condition") or "").strip()
+                if not tr:
+                    continue
+                thr = float(
+                    self._fade_enriched_history_cfg.get(
+                        "trigger_text_threshold", self.FADE_TAG_TRIGGER_THRESHOLD
+                    )
+                )
+                score = self._trigger_obs_token_overlap(tr, obs_str)
+                if score >= thr:
+                    f["shield_active"] = False
+                    f["v_i"] = min(1.0, f.get("v_i", 0.0) + self.FADE_TAG_TRIGGER_BOOST)
+                    self._fade_tag_trigger_count += 1
+            else:
+                if obs_embedding is None:
+                    continue
+                trigger_emb = f.get("trigger_embedding")
+                if trigger_emb is None:
+                    continue
+                sim = self._cosine_similarity(trigger_emb, obs_embedding)
+                if sim >= self.FADE_TAG_TRIGGER_THRESHOLD:
+                    f["shield_active"] = False
+                    f["v_i"] = min(1.0, f.get("v_i", 0.0) + self.FADE_TAG_TRIGGER_BOOST)
+                    self._fade_tag_trigger_count += 1
 
     def extract_action(self, response, valid_actions):
         if response is None:
@@ -924,7 +1008,7 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
                             self._fade_priming_count += 1
 
             # Phase 1b: check if any shielded fact's trigger matches current observation
-            self._check_triggers(obs_emb, step_idx)
+            self._check_triggers(obs_emb, step_idx, obs_text_str)
 
             # Phase 2: select only active facts, rank by mission relevance + strength
             active_facts = [
@@ -1159,10 +1243,13 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
                             entry["shield_active"] = True
                             entry["trigger_condition"] = trigger
                             entry["shield_start_step"] = step_idx
-                            try:
-                                entry["trigger_embedding"] = self.llm.embed(trigger)
-                            except Exception:
-                                entry["shield_active"] = False
+                            if self._fade_enriched_history_cfg.get("trigger_match", "text") == "embedding":
+                                try:
+                                    entry["trigger_embedding"] = self.llm.embed(trigger)
+                                except Exception:
+                                    entry["shield_active"] = False
+                            else:
+                                entry["trigger_embedding"] = None
 
                         self._resolve_conflicts(entry, step_idx)
                     self._enriched_buffer.append(entry)

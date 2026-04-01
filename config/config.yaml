@@ -1,12 +1,32 @@
 agent:
   params:
     # Valid values: baseline, trajectory, reflection, enriched, enriched_history, fade_enriched_history, random
-    memory_type: baseline
+    memory_type: fade_enriched_history
+
+    
+    # fade_enriched_history, used only when memory_type is fade_enriched_history
+    
+    fade_enriched_history:
+      # text: no embed(trigger); match trigger_condition to observation tokens
+      # embedding: cosine(trigger_embedding, obs_embedding); requires API embed per trigger
+      trigger_match: text
+      trigger_text_threshold: 0.55
+      # Cap LLM classify/merge calls per new fact (after rule-based contradictions)
+      # null = no cap. 0 = skip embedding-based conflict LLM path entirely
+      max_conflict_llm_candidates: 8
+
+      
+      priming_interval: 6          # obs embed + priming cadence
+      tag_batch_interval: 12       # prospective batch LLM
+      fusion_interval: 12         # fusion attempts
+      theta_fusion: 0.82          # higher = stricter semantic cluster (Eq. 11)
+      t_window: 10                # max creation_step distance for same cluster (Eq. 11)
+
 env:
   fallback_action: turn left
   gym_kwargs: {}
   invalid_action_mode: fallback
-  name: BabyAI-PickupLoc-v0
+  name: BabyAI-GoToObj-v0
 eval:
   max_steps_per_episode: 80
   num_episodes: 30
