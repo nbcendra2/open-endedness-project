@@ -686,11 +686,16 @@ def _run_difficulty(
             for ep_idx in tqdm(range(n_ep), desc=f"{difficulty}", total=n_ep):
                 ep_seed = seed + ep_idx
 
-                # Generate a unique game per episode (different seed → different layout)
-                try:
-                    game_file = _generate_game(level, ep_seed, tmp_dir)
-                except Exception as exc:
-                    print(f"\n  WARNING: game generation failed for ep {ep_idx}: {exc}")
+                # Generate a game; retry with offset seeds if the map can't support the quest
+                game_file = None
+                for attempt in range(10):
+                    try:
+                        game_file = _generate_game(level, ep_seed + attempt * 1000, tmp_dir)
+                        break
+                    except Exception:
+                        continue
+                if game_file is None:
+                    print(f"\n  WARNING: game generation failed for ep {ep_idx} after 10 retries")
                     continue
 
                 tw_env = _make_tw_env(game_file)
