@@ -429,18 +429,18 @@ def _run_batch(base_cfg: DictConfig, config_yaml: str = "config/config.yaml") ->
     envs = [
         # "BabyAI-GoToObj-v0",
         # "BabyAI-Open-v0",
-        "BabyAI-Unlock-v0",
-        # "BabyAI-Pickup-v0",
+        # "BabyAI-Unlock-v0",
+        "BabyAI-Pickup-v0",
     ]
     # Phase 1: five lighter memory modes. Run fade_enriched_history separately later
     # with the same config (seed, episodes, max_steps) for comparability.
     memory_types = [
         # "baseline",
-        "trajectory",
+        # "trajectory",
         # "reflection",
         # "enriched",
-        "enriched_history",
-        # "fade_enriched_history"
+        # "enriched_history",
+        "fade_enriched_history"
     ]
 
     os.makedirs("runs", exist_ok=True)

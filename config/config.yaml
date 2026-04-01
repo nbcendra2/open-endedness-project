@@ -33,7 +33,7 @@ eval:
   out_json: runs/rollout.jsonl
   seed: 0
 llm:
-  name: gemini-2.5-flash-lite #gpt-4o-mini, gemini-2.5-flash-lite, deepseek-chat
-  provider: gemini #openai, gemini, deepseek
+  name: deepseek-chat #gpt-4o-mini, gemini-2.5-flash-lite, deepseek-chat
+  provider: deepseek #openai, gemini, deepseek
   temperature: 0
   timeout: 180.0
