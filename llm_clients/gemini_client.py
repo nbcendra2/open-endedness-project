@@ -4,7 +4,7 @@ Accepts the same OpenAI-style message list (role and content) and converts it
 to Gemini user/model turns plus optional system_instruction
 """
 
-import os
+import os, json
 import google.generativeai as genai
 from dotenv import load_dotenv
 
@@ -81,8 +81,13 @@ class GeminiClient(BaseLLMClient):
             ),
             request_options={"timeout": timeout},
         )
-        result = parse_maybe_markdown_json(response.text)
-        return ensure_action_in_valid(result, valid_actions)
+        raw = (response.text or "").strip()
+        try:
+            result = parse_maybe_markdown_json(raw)
+            return ensure_action_in_valid(result, valid_actions)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            # force invalid action when empty
+            return {"reason": "gemini_invalid_or_empty_json", "action": "__invalid__"}
 
     def generate_planning_structured(self, messages, temperature=0.3, timeout=15):
         system_instruction, contents = self._convert_messages(messages)

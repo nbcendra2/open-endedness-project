@@ -26,14 +26,14 @@ env:
   fallback_action: turn left
   gym_kwargs: {}
   invalid_action_mode: fallback
-  name: BabyAI-GoToObj-v0
+  name: BabyAI-Pickup-v0
 eval:
   max_steps_per_episode: 80
   num_episodes: 30
   out_json: runs/rollout.jsonl
   seed: 0
 llm:
-  name: gpt-4o-mini #gpt-4o-mini, gemini-2.5-flash.lite, deepseek-chat
-  provider: openai #openai, gemini, deepseek
+  name: gemini-2.5-flash-lite #gpt-4o-mini, gemini-2.5-flash-lite, deepseek-chat
+  provider: gemini #openai, gemini, deepseek
   temperature: 0
   timeout: 180.0
