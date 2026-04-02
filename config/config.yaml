@@ -1,7 +1,7 @@
 agent:
   params:
     # Valid values: baseline, trajectory, reflection, enriched, enriched_history, fade_enriched_history, random
-    memory_type: fade_enriched_history
+    memory_type: trajectory
 
     
     # fade_enriched_history, used only when memory_type is fade_enriched_history
@@ -26,10 +26,10 @@ env:
   fallback_action: turn left
   gym_kwargs: {}
   invalid_action_mode: fallback
-  name: BabyAI-Pickup-v0
+  name: BabyAI-GoToObj-v0
 eval:
-  max_steps_per_episode: 80
-  num_episodes: 30
+  max_steps_per_episode: 20
+  num_episodes: 3
   out_json: runs/rollout.jsonl
   seed: 0
 llm:

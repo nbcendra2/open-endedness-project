@@ -1,0 +1,105 @@
+"""
+Why this module exists
+----------------------
+BabyAI (via Minigrid) is a standard Gymnasium environment: actions are small integers and
+step() expects those ids. Our agents are large language models that read natural language
+and output short verb phrases (e.g. go forward), not 0/1/2.
+
+BabyAITextCleanLangWrapper is the adapter between those two worlds. Without it, every
+part of the codebase that talks to the LLM would need to duplicate Minigrid action indices,
+mission encoding, and observation formatting. Here we centralize that:
+
+- In: a string action on step() is mapped to the correct integer for the inner env.
+- Out: each reset/step observation is extended with obs["text"] (human-readable lines from
+  infos["descriptions"], or a mission fallback) and obs["image"] (a POV render). Downstream
+  code (e.g. EnvWrapper) can feed text to the model and ignore the image if it only runs a
+  text LLM.
+
+The fixed list BABYAI_ACTION_SPACE must stay aligned with the underlying BabyAI action order;
+changing it breaks the string-to-index mapping.
+
+The vlm argument is unused today; it was reserved for toggling vision-style behaviour later.
+"""
+
+import gymnasium as gym
+from PIL import Image
+
+# Fixed ordering must match the underlying BabyAI discrete action space (index 0 = turn left, …).
+BABYAI_ACTION_SPACE = [
+    "turn left",
+    "turn right",
+    "go forward",
+    "pick up",
+    "drop",
+    "toggle",
+]
+
+
+class BabyAITextCleanLangWrapper(gym.Wrapper):
+    """Expose BabyAI as string actions and add obs["text"] and obs["image"]."""
+
+    def __init__(self, env, vlm=False, **kwargs):
+        super().__init__(env)
+        self.language_action_space = BABYAI_ACTION_SPACE[:]
+        self._mission = None
+        self.progression = 0.0
+
+    @property
+    def max_steps(self):
+        return self.env.unwrapped.max_steps
+
+    @property
+    def default_action(self):
+        return "go forward"
+
+    def get_text_action(self, action):
+        """Map a BabyAI discrete action (action.value is the int index) to its English string."""
+        return self.language_action_space[action.value]
+
+    def get_prompt(self, obs, infos):
+        """
+        Build (text_for_LLM, pov_image).
+
+        Text comes from infos["descriptions"] (BabyAI lines like "You see …"); we strip
+        the "You see " prefix per line. If descriptions are missing, fall back to obs["mission"].
+        Image is an RGB PIL image from the agent's point of view (tile_size=16).
+        """
+        image = Image.fromarray(self.env.unwrapped.get_pov_render(tile_size=16)).convert("RGB")
+
+        def _form_prompt(description):
+            return "\n".join([d.replace("You see ", "") for d in description])
+
+        descriptions = infos.get("descriptions", [])
+
+        if not descriptions:
+            mission = obs.get("mission", "unknown mission")
+            descriptions = [f"Mission: {mission}"]
+
+        prompt = _form_prompt(descriptions)
+        return prompt, image
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        prompt, image = self.get_prompt(obs, info)
+        self._mission = obs["mission"]
+        self.progression = 0.0
+        # Following the convention from NetHack Language Wrapper for specifying
+        # short term vs long term context here. There is no equivalent long term
+        # context like e.g. inventory in BabyAI-Text.
+        obs["text"] = {"long_term_context": prompt, "short_term_context": ""}
+        obs["image"] = image
+        return obs, info
+
+    def step(self, action):
+        # action is an English string; underlying env expects an integer action id.
+        action_int = self.language_action_space.index(action)
+        obs, reward, terminated, truncated, infos = self.env.step(action_int)
+        if reward > 0:
+            self.progression = 1.0
+        prompt, image = self.get_prompt(obs, infos)
+        obs["text"] = {"long_term_context": prompt, "short_term_context": ""}
+        obs["image"] = image
+        return obs, reward, terminated, truncated, infos
+
+    def get_stats(self):
+        return {"mission": self._mission, "progression": self.progression}

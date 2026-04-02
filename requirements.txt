@@ -10,3 +10,5 @@ numpy
 tqdm
 google-generativeai
 textworld>=1.5
+matplotlib
+ipykernel
