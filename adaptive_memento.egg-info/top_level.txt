@@ -1,3 +1,0 @@
-agent
-babyai_text
-environments
