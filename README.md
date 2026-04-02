@@ -39,7 +39,7 @@ python evaluator.py
 ```
 Change experiment settings in `config/config.yaml`.
 
-**TextWorld:**
+**TextWorld (Treasure Hunter):**
 ```bash
 python evaluator_textworld.py
 ```
