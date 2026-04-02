@@ -128,7 +128,7 @@ from postprocess_rollouts import (
 DIFFICULTY_MAP: Dict[str, Dict[str, Any]] = {
     "easy":   {"level": 10,  "default_max_steps": 10,  "default_episodes": 2},
     "medium": {"level": 15, "default_max_steps": 20, "default_episodes": 2},
-    "hard":   {"level": 20, "default_max_steps": 20, "default_episodes": 2},
+    "hard":   {"level": 30, "default_max_steps": 20, "default_episodes": 2},
 }
 #hard usually 25 above.
 
@@ -179,27 +179,49 @@ def _unwrap(val: Any) -> Any:
 
 # ── Game generation ─────────────────────────────────────────────────────────
 
+import signal
+
+GAME_GEN_TIMEOUT_S = 60  # seconds before giving up on a single seed
+
+
+class _GameGenTimeout(Exception):
+    pass
+
+
+def _timeout_handler(signum, frame):
+    raise _GameGenTimeout("Game generation timed out")
+
+
 def _generate_game(level: int, seed: int, tmp_dir: str) -> str:
     """Generate a TreasureHunter game file. Returns path to .z8/.ulx file.
 
     treasure_hunter.make() returns a Game object (not a file).
     We then compile it to a playable game file via textworld.generator.compile_game().
+    Times out after GAME_GEN_TIMEOUT_S to avoid hanging on pathological seeds.
     """
     options = textworld.GameOptions()
     options.seeds = seed
     options.path = os.path.join(tmp_dir, f"tw_th_L{level}_s{seed}")
 
+    old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+    signal.alarm(GAME_GEN_TIMEOUT_S)
     try:
         game = _tw_th.make({"level": level}, options)
+        game_file = textworld.generator.compile_game(game, options)
+        return game_file
+    except _GameGenTimeout:
+        raise RuntimeError(
+            f"Game generation timed out after {GAME_GEN_TIMEOUT_S}s "
+            f"(level={level}, seed={seed})"
+        )
     except Exception as exc:
         raise RuntimeError(
-            f"Could not generate TreasureHunter game (level={level}).\n"
-            f"Ensure textworld is properly installed: pip install 'textworld>=1.5'\n"
-            f"Original error: {exc}"
+            f"Could not generate TreasureHunter game "
+            f"(level={level}, seed={seed}): {exc}"
         ) from exc
-
-    game_file = textworld.generator.compile_game(game, options)
-    return game_file
+    finally:
+        signal.alarm(0)  # cancel pending alarm
+        signal.signal(signal.SIGALRM, old_handler)
 
 
 def _make_tw_env(game_file: str):

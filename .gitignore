@@ -209,6 +209,8 @@ marimo/_lsp/
 __marimo__/
 
 runs/
+runs_tw/
+runs_tw_gemini/
 agent_memory_store/
 
 __pycache__/
