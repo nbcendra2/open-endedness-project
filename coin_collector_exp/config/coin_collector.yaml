@@ -1,0 +1,49 @@
+# ============================================================
+# TextWorld Coin Collector — base experiment configuration
+# ============================================================
+# Run a single condition:
+#   python evaluator.py --config config/coin_collector.yaml
+#
+# Run the full grid (all memory types × levels):
+#   python run_tw_batch.py --config config/coin_collector.yaml
+#
+# Switch difficulty by changing the level suffix:
+#   tw-coin_collector-L1   →  Easy   (≈ GoToLocal)
+#   tw-coin_collector-L5   →  Medium (≈ PickupLoc)
+#   tw-coin_collector-L10  →  Hard   (≈ GoToImpUnlock)
+#   tw-coin_collector-L15  →  Very Hard
+#   tw-coin_collector-L20  →  Extreme
+# ============================================================
+
+agent:
+  params:
+    # Valid: baseline, trajectory, reflection, enriched, enriched_history, fade_enriched_history, random
+    memory_type: baseline
+
+    fade_enriched_history:
+      trigger_match: text
+      trigger_text_threshold: 0.55
+      max_conflict_llm_candidates: 8
+      priming_interval: 6
+      tag_batch_interval: 12
+      fusion_interval: 12
+      theta_fusion: 0.82
+      t_window: 10
+
+env:
+  name: tw-coin_collector-L1
+  fallback_action: look
+  gym_kwargs: {}
+  invalid_action_mode: fallback
+
+eval:
+  max_steps_per_episode: 15
+  num_episodes: 3
+  out_json: runs/rollout.jsonl
+  seed: 0
+
+llm:
+  name: gpt-4o-mini
+  provider: openai
+  temperature: 0
+  timeout: 180.0

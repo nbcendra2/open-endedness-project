@@ -1,0 +1,32 @@
+agent:
+  params:
+    # Valid values: baseline, trajectory, reflection, enriched, enriched_history, fade_enriched_history, random
+    memory_type: baseline
+
+    # fade_enriched_history, used only when memory_type is fade_enriched_history
+    fade_enriched_history:
+      trigger_match: text
+      trigger_text_threshold: 0.55
+      max_conflict_llm_candidates: 8
+      priming_interval: 6
+      tag_batch_interval: 12
+      fusion_interval: 12
+      theta_fusion: 0.82
+      t_window: 10
+
+env:
+  # Only invalid_action_mode is used by evaluator_textworld.py
+  # fallback_action and name are ignored (TextWorld handles these internally)
+  invalid_action_mode: fallback
+
+eval:
+  seed: 0
+  num_episodes: 30
+  max_steps_per_episode: 80
+  out_json: runs_tw_gemini/rollout.jsonl
+
+llm:
+  name: gemini-2.5-flash-lite #gpt-4o-mini, gemini-2.5-flash-lite, deepseek-chat
+  provider: gemini #openai, gemini, deepseek
+  temperature: 0
+  timeout: 180.0
