@@ -212,6 +212,7 @@ runs/
 runs_tw/
 runs_tw_gemini/
 agent_memory_store/
+coin_collector_exp/games/
 
 __pycache__/
 *.py[cod]
