@@ -35,13 +35,30 @@ DEEPSEEK_API_KEY=put_your_key_here
 
 **BabyAI:**
 ```bash
+# Single run (settings from config)
 python evaluator.py
+
+# Batch mode — all memory types x all tasks
+python evaluator.py --batch
 ```
 Change experiment settings in `config/config.yaml`.
 
 **TextWorld (Treasure Hunter):**
 ```bash
-python evaluator_textworld.py
+# Single difficulty (easy | medium | hard | very-hard)
+python evaluator_textworld.py --difficulty easy
+
+# Run all difficulties sequentially
+python evaluator_textworld.py --difficulty all
+
+# Custom episode count and step limit
+python evaluator_textworld.py --difficulty hard --max-steps 200 --num-episodes 20
+
+# Batch mode — all difficulties x memory types
+python evaluator_textworld.py --batch
+
+# Batch mode for a specific difficulty
+python evaluator_textworld.py --batch --difficulty easy
 ```
 Change experiment settings in `config/config_textworld.yaml`.
 

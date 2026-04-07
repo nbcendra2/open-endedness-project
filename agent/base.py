@@ -224,6 +224,10 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
             self.FADE_THETA_FUSION = fe["theta_fusion"]
             self.FADE_T_WINDOW = fe["t_window"]
 
+        # Trace logging: opt-in, zero overhead when disabled
+        self._trace_enabled: bool = False
+        self._trace_log: List[Dict[str, Any]] = []
+
         # Fade-enriched-only state (unused by other memory modes)
         if self.memory_type == "fade_enriched_history":
             self._current_mission: str = ""
@@ -238,6 +242,44 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
             self._fade_compatible_count: int = 0
             self._fade_subsume_count: int = 0
             self._fade_fusion_count: int = 0
+
+    # --- Trace logging helpers ---
+
+    def _trace(self, event_type: str, step_idx: int, **data: Any) -> None:
+        if self._trace_enabled:
+            self._trace_log.append({"event": event_type, "step": step_idx, **data})
+
+    def get_trace_snapshot(self) -> Dict[str, Any]:
+        """Return collected trace events and a final buffer snapshot (no embeddings)."""
+        return {
+            "trace_events": list(self._trace_log),
+            "final_buffer": [
+                {k: v for k, v in f.items() if k != "embedding" and k != "trigger_embedding"}
+                for f in self._enriched_buffer
+            ],
+        }
+
+    def get_step_memory_snapshot(self) -> Dict[str, Any]:
+        """Lightweight per-step snapshot of the enriched buffer (no embeddings)."""
+        active = []
+        dormant_count = 0
+        for f in self._enriched_buffer:
+            state = f.get("state", "active")
+            if state == "active":
+                active.append({
+                    "fact": f.get("fact", ""),
+                    "v_i": f.get("v_i"),
+                    "steps": f.get("steps", ""),
+                    "shield_active": f.get("shield_active", False),
+                    "trigger_condition": f.get("trigger_condition", ""),
+                })
+            else:
+                dormant_count += 1
+        return {
+            "buffer_size": len(self._enriched_buffer),
+            "active_facts": active,
+            "dormant_count": dormant_count,
+        }
 
     # --- Fade-enriched helper functions ---
 
@@ -370,9 +412,15 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
             raw = self.llm.generate(messages, temperature=0.0, timeout=self.timeout)
             label = raw.strip().lower().rstrip(".")
             if label in ("compatible", "contradictory", "subsumes", "subsumed"):
+                self._trace("conflict_classified", -1,
+                            old_fact=old_fact_text, new_fact=new_fact_text,
+                            label=label, llm_raw=raw.strip())
                 return label
         except Exception:
             pass
+        self._trace("conflict_classified", -1,
+                    old_fact=old_fact_text, new_fact=new_fact_text,
+                    label="compatible", llm_raw="(default/error)")
         return "compatible"
 
     def _merge_facts_via_llm(self, fact_a: str, fact_b: str) -> str:
@@ -394,6 +442,8 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
             merged = self.llm.generate(messages, temperature=0.0, timeout=self.timeout)
             merged = merged.strip()
             if merged:
+                self._trace("facts_merged", -1,
+                            fact_a=fact_a, fact_b=fact_b, merged=merged)
                 return merged
         except Exception:
             pass
@@ -412,7 +462,12 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
         for existing in self._enriched_buffer:
             if existing.get("state") == "active" and \
                self._facts_contradict(existing.get("fact", ""), new_text):
+                v_before = existing.get("v_i", 1.0)
                 self._apply_contradiction_update(existing, new_entry)
+                self._trace("conflict_resolved", step_idx,
+                            old_fact=existing.get("fact", ""), new_fact=new_text,
+                            label="contradictory_rule", v_i_before=v_before,
+                            v_i_after=existing.get("v_i"), state=existing.get("state"))
 
         # Embedding-based: find candidates and classify via LLM
         if new_emb is None:
@@ -434,6 +489,8 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
 
             sim = cand.get("_sim", 0.0)
             label = self._classify_relationship(new_text, cand.get("fact", ""))
+
+            v_before = cand.get("v_i", 1.0)
 
             if label == "compatible":
                 # Paper Eq. 9: Ii = Ii · (1 − ω · sim) — multiplicative importance reduction
@@ -473,6 +530,11 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
                     cand["v_i"] = min(1.0, cand.get("v_i", 1.0) + 0.1)
                     new_entry["state"] = "dormant"
                 self._fade_subsume_count += 1
+
+            self._trace("conflict_resolved", step_idx,
+                        old_fact=cand.get("fact", ""), new_fact=new_text,
+                        label=label, similarity=sim, v_i_before=v_before,
+                        v_i_after=cand.get("v_i"), state=cand.get("state"))
 
             # Clean up temp field
             cand.pop("_sim", None)
@@ -576,6 +638,8 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
 
             # Paper §2.4: reject fusion if information preservation is below threshold
             if not self._validate_fusion_preservation(fact_texts, fused_text):
+                self._trace("fusion_rejected", step_idx,
+                            original_facts=fact_texts, fused_text=fused_text)
                 continue
 
             # Paper Eq. 12: v_fused = max(vi) + ε · var(vi)
@@ -628,6 +692,9 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
 
             self._enriched_buffer.append(fused_entry)
             self._fade_fusion_count += 1
+            self._trace("fusion_performed", step_idx,
+                        original_facts=fact_texts, fused_text=fused_text,
+                        v_fused=v_fused, cluster_size=len(cluster))
 
     # --- Predictive memory tagging (prospective memory) ---
 
@@ -792,6 +859,9 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
                     fact.pop("trigger_condition", None)
             else:
                 fact["trigger_embedding"] = None
+            self._trace("shield_created_llm", step_idx,
+                        fact=fact.get("fact", ""), trigger_condition=trigger_text,
+                        llm_raw=raw.strip())
 
     def _check_triggers(
         self,
@@ -815,6 +885,9 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
             if shield_age > self.FADE_TAG_MAX_SHIELD_STEPS:
                 f["shield_active"] = False
                 self._fade_tag_expire_count += 1
+                self._trace("trigger_expired", step_idx,
+                            fact=f.get("fact", ""), trigger_condition=f.get("trigger_condition", ""),
+                            shield_age=shield_age)
                 continue
 
             if use_text:
@@ -828,9 +901,14 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
                 )
                 score = self._trigger_obs_token_overlap(tr, obs_str)
                 if score >= thr:
+                    v_before = f.get("v_i", 0.0)
                     f["shield_active"] = False
-                    f["v_i"] = min(1.0, f.get("v_i", 0.0) + self.FADE_TAG_TRIGGER_BOOST)
+                    f["v_i"] = min(1.0, v_before + self.FADE_TAG_TRIGGER_BOOST)
                     self._fade_tag_trigger_count += 1
+                    self._trace("trigger_fired", step_idx,
+                                fact=f.get("fact", ""), trigger_condition=tr,
+                                match_mode="text", match_score=score,
+                                v_i_before=v_before, v_i_after=f["v_i"])
             else:
                 if obs_embedding is None:
                     continue
@@ -839,9 +917,14 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
                     continue
                 sim = self._cosine_similarity(trigger_emb, obs_embedding)
                 if sim >= self.FADE_TAG_TRIGGER_THRESHOLD:
+                    v_before = f.get("v_i", 0.0)
                     f["shield_active"] = False
-                    f["v_i"] = min(1.0, f.get("v_i", 0.0) + self.FADE_TAG_TRIGGER_BOOST)
+                    f["v_i"] = min(1.0, v_before + self.FADE_TAG_TRIGGER_BOOST)
                     self._fade_tag_trigger_count += 1
+                    self._trace("trigger_fired", step_idx,
+                                fact=f.get("fact", ""), trigger_condition=f.get("trigger_condition", ""),
+                                match_mode="embedding", match_score=sim,
+                                v_i_before=v_before, v_i_after=f["v_i"])
 
     def extract_action(self, response, valid_actions):
         if response is None:
@@ -936,6 +1019,10 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
         elif self.memory_type == "enriched_history":
             # Hybrid: trajectory prompt history + enriched memory block
             facts = self._enriched_buffer[-self.MAX_ENRICHED_FACTS :]
+            if facts:
+                self._trace("facts_selected_for_prompt", step_idx,
+                            selected=[{"fact": f.get("fact",""), "steps": f.get("steps","")} for f in facts],
+                            total_buffer=len(self._enriched_buffer))
             enriched_lines = []
             if facts:
                 enriched_lines.append("Enriched memory from previous steps:")
@@ -993,19 +1080,27 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
 
                 if f.get("state") == "dormant":
                     if sim >= self.REACTIVATION_THRESHOLD:
+                        v_before = f.get("v_i", 0.0)
                         f["state"] = "active"
-                        f["v_i"] = min(1.0, f.get("v_i", 0.0) + self.REACTIVATION_BOOST)
+                        f["v_i"] = min(1.0, v_before + self.REACTIVATION_BOOST)
                         f["age_i"] = 0
                         f["reactivation_hits"] = f.get("reactivation_hits", 0) + 1
                         self._fade_reactivation_count += 1
+                        self._trace("reactivation", step_idx,
+                                    fact=f.get("fact", ""), similarity=sim,
+                                    v_i_before=v_before, v_i_after=f["v_i"])
 
                 elif f.get("state") == "active" and f.get("v_i", 1.0) < self.FADE_PRIMING_WEAK_V:
                     if sim >= self.FADE_PRIMING_THRESHOLD:
                         cooldown_ok = (step_idx - f.get("last_primed_step", -999)) >= self.FADE_PRIMING_COOLDOWN
                         if cooldown_ok:
-                            f["v_i"] = min(1.0, f["v_i"] + self.FADE_PRIMING_BOOST * sim)
+                            v_before = f["v_i"]
+                            f["v_i"] = min(1.0, v_before + self.FADE_PRIMING_BOOST * sim)
                             f["last_primed_step"] = step_idx
                             self._fade_priming_count += 1
+                            self._trace("priming_boost", step_idx,
+                                        fact=f.get("fact", ""), similarity=sim,
+                                        v_i_before=v_before, v_i_after=f["v_i"])
 
             # Phase 1b: check if any shielded fact's trigger matches current observation
             self._check_triggers(obs_emb, step_idx, obs_text_str)
@@ -1041,6 +1136,13 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
                 top_facts = sorted(top_facts, key=lambda x: str(x.get("steps", "")))
             else:
                 top_facts = []
+
+            if top_facts:
+                self._trace("facts_selected_for_prompt", step_idx,
+                            selected=[{"fact": f.get("fact",""), "steps": f.get("steps",""),
+                                       "v_i": f.get("v_i"), "shield_active": f.get("shield_active", False)}
+                                      for f in top_facts],
+                            total_active=len(active_facts), total_buffer=len(self._enriched_buffer))
 
             enriched_lines = []
             if top_facts:
@@ -1110,6 +1212,7 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
         self._enriched_buffer.clear()
         self._enrichment_step_buffer.clear()
         self._reflection_step_history.clear()
+        self._trace_log.clear()
         if self.memory_type == "fade_enriched_history":
             self._fade_reactivation_count = 0
             self._fade_priming_count = 0
@@ -1210,6 +1313,9 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
                 fact = str(fact_text).strip()
                 if fact:
                     span = f"{window[0]['step']}-{window[2]['step']}"
+                    self._trace("fact_encoded", step_idx,
+                                window=[{"step": w["step"], "action": w["action"]} for w in window],
+                                encoded_fact=fact, span=span)
                     entry = {"steps": span, "fact": fact}
                     if self.memory_type == "fade_enriched_history":
                         try:
@@ -1250,10 +1356,13 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
                                     entry["shield_active"] = False
                             else:
                                 entry["trigger_embedding"] = None
+                            self._trace("shield_created_rule", step_idx,
+                                        fact=fact, trigger_condition=trigger)
 
                         self._resolve_conflicts(entry, step_idx)
                     self._enriched_buffer.append(entry)
                     if len(self._enriched_buffer) > self.MAX_ENRICHED_FACTS * 2:
+                        buf_before = len(self._enriched_buffer)
                         if self.memory_type == "fade_enriched_history":
                             active = [f for f in self._enriched_buffer if f.get("state") == "active"]
                             dormant = [f for f in self._enriched_buffer if f.get("state") == "dormant"]
@@ -1262,10 +1371,18 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
                             active = active[-self.MAX_ENRICHED_FACTS:]
                             self._enriched_buffer = active + dormant
                         else:
-                            self._enriched_buffer = [
+                            old_buffer = [
                                 f for f in self._enriched_buffer
                                 if f.get("state", "active") == "active"
-                            ][-self.MAX_ENRICHED_FACTS:]
+                            ]
+                            kept = old_buffer[-self.MAX_ENRICHED_FACTS:]
+                            dropped = old_buffer[:-self.MAX_ENRICHED_FACTS] if len(old_buffer) > self.MAX_ENRICHED_FACTS else []
+                            if dropped:
+                                self._trace("fact_dropped_fifo", step_idx,
+                                            dropped_facts=[f.get("fact", "") for f in dropped],
+                                            buffer_size_before=buf_before,
+                                            buffer_size_after=len(kept))
+                            self._enriched_buffer = kept
 
         # For fade_enriched_history, apply decay / promotion / dormancy each step
         if self.memory_type == "fade_enriched_history" and self._enriched_buffer:
@@ -1327,12 +1444,24 @@ Replace YOUR CHOSEN ACTION with the chosen action. Do not output anything outsid
                 alpha = 0.8 if layer == "LML" else 1.2
                 v = v * pow(2.718281828, -lam * (age ** alpha))
 
+                v_before = float(fact.get("v_i", 1.0))
+                state_before = str(fact.get("state", "active"))
+
                 # Lifecycle: active -> dormant -> dropped
                 if state == "active" and v < self.DORMANT_THRESHOLD:
                     state = "dormant"
                 elif state == "dormant":
                     if v < self.DROP_THRESHOLD or age > self.MAX_DORMANT_AGE:
+                        self._trace("fact_dropped", step_idx,
+                                    fact=fact.get("fact", ""), v_i=v, age=age,
+                                    reason="below_threshold" if v < self.DROP_THRESHOLD else "max_age")
                         continue
+
+                if self._trace_enabled and (state != state_before or abs(v - v_before) > 0.05):
+                    self._trace("fact_decayed", step_idx,
+                                fact=fact.get("fact", ""), v_i_before=v_before,
+                                v_i_after=v, state_before=state_before, state_after=state,
+                                layer=layer, shield_active=fact.get("shield_active", False))
 
                 fact["v_i"] = v
                 fact["age_i"] = age
