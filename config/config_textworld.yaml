@@ -23,7 +23,7 @@ eval:
   seed: 0
   num_episodes: 30
   max_steps_per_episode: 80
-  out_json: runs_tw_gemini/rollout.jsonl
+  out_json: runs_tw/rollout.jsonl
 
 llm:
   name: gemini-2.5-flash-lite #gpt-4o-mini, gemini-2.5-flash-lite, deepseek-chat

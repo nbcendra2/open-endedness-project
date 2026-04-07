@@ -128,7 +128,8 @@ from postprocess_rollouts import (
 DIFFICULTY_MAP: Dict[str, Dict[str, Any]] = {
     "easy":   {"level": 10,  "default_max_steps": 10,  "default_episodes": 2},
     "medium": {"level": 15, "default_max_steps": 20, "default_episodes": 2},
-    "hard":   {"level": 30, "default_max_steps": 20, "default_episodes": 2},
+    "hard":   {"level": 20, "default_max_steps": 20, "default_episodes": 2},
+    "very-hard":   {"level": 30, "default_max_steps": 20, "default_episodes": 2}
 }
 #hard usually 25 above.
 
@@ -274,15 +275,19 @@ def _tw_to_env_state(obs: Any, infos: dict) -> EnvState:
     )
 
 
-def _build_system_prompt(objective: str) -> str:
+def _build_system_prompt(objective: str, detailed_reasoning: bool = False) -> str:
     """System prompt analogous to BabyAI's get_instruction_prompt."""
+    if detailed_reasoning:
+        reason_fmt = '"reason": "<your step-by-step reasoning, 1-2 sentences>"'
+    else:
+        reason_fmt = '"reason": "<brief, 10 words max>"'
     return (
         f"You are playing a text adventure game (TextWorld TreasureHunter).\n"
         f"Your objective: {objective}\n\n"
         f"At each step you receive a text observation and a list of valid actions.\n"
         f"Choose EXACTLY one action from the valid actions list.\n"
         f'Respond with a JSON object: {{"action": "<chosen action>", '
-        f'"reason": "<brief, 10 words max>"}}\n\n'
+        f'{reason_fmt}}}\n\n'
         f"Tips:\n"
         f"- Explore rooms by going through doors/exits.\n"
         f"- Pick up objects that match your objective.\n"
@@ -352,11 +357,12 @@ def run_episode(
     max_steps: int,
     env_name: str,
     invalid_action_mode: str,
+    trace_enabled: bool = False,
 ) -> Dict[str, Any]:
     """Run one TextWorld episode. Returns dict matching evaluator.py schema."""
     obs, infos = _tw_reset(tw_env)
     state = _tw_to_env_state(obs, infos)
-    system_prompt = _build_system_prompt(state.mission)
+    system_prompt = _build_system_prompt(state.mission, detailed_reasoning=trace_enabled)
 
     agent.start_episode(
         episode_id=episode_idx,
@@ -435,7 +441,7 @@ def run_episode(
         total_reward += step_reward
 
         # TextWorld has no grid → transition fields are always n/a
-        steps_log.append({
+        step_entry: Dict[str, Any] = {
             "episode": episode_idx,
             "step_idx": t,
             "mission": state.mission,
@@ -455,7 +461,10 @@ def run_episode(
                 "movement_attempt": False,
                 "movement_blocked": False,
             },
-        })
+        }
+        if trace_enabled and hasattr(agent, "get_step_memory_snapshot"):
+            step_entry["memory_snapshot"] = agent.get_step_memory_snapshot()
+        steps_log.append(step_entry)
 
         state = new_state
         terminated = step_terminated
@@ -496,6 +505,8 @@ def run_episode(
             "subsume_resolved": agent._fade_subsume_count,
             "fusions_performed": agent._fade_fusion_count,
         }
+    if trace_enabled and hasattr(agent, "get_trace_snapshot"):
+        ep_result["trace"] = agent.get_trace_snapshot()
 
     ep_result["success"] = is_episode_success(ep_result)
     ep_result["has_loop"] = episode_has_loop(ep_result)
@@ -661,13 +672,15 @@ def _run_difficulty(
     max_steps: Optional[int],
     out_base: Optional[str],
     quiet: bool = False,
+    trace_enabled: bool = False,
+    level_override: Optional[int] = None,
 ) -> Tuple[Optional[Path], Optional[Dict[str, Any]]]:
     """Run all episodes for one difficulty. Returns (rollout_path, metrics) or (None, None).
 
     quiet=True suppresses banners and detailed metrics (used by batch mode).
     """
     settings = DIFFICULTY_MAP[difficulty]
-    level = settings["level"]
+    level = level_override if level_override is not None else settings["level"]
     # Priority: CLI --num-episodes > config eval.num_episodes > DIFFICULTY_MAP default
     cfg_episodes = int(getattr(cfg.eval, "num_episodes", 0)) or None
     cfg_max_steps = int(getattr(cfg.eval, "max_steps_per_episode", 0)) or None
@@ -684,6 +697,8 @@ def _run_difficulty(
         print(f"{'─'*60}")
 
     agent = build_agent(config=cfg, system_prompt=None)
+    if trace_enabled:
+        agent._trace_enabled = True
     memory_type = str(
         getattr(getattr(cfg.agent, "params", {}), "memory_type", "baseline")
     ).lower()
@@ -730,6 +745,7 @@ def _run_difficulty(
                         max_steps=m_steps,
                         env_name=env_name,
                         invalid_action_mode=invalid_action_mode,
+                        trace_enabled=trace_enabled,
                     )
                 finally:
                     tw_env.close()
@@ -833,6 +849,8 @@ def _run_batch(
     num_episodes: Optional[int],
     max_steps: Optional[int],
     out_base: Optional[str],
+    trace_enabled: bool = False,
+    level_override: Optional[int] = None,
 ) -> None:
     """Run all memory types x difficulties sequentially with per-difficulty summaries.
 
@@ -895,6 +913,8 @@ def _run_batch(
                     max_steps=max_steps,
                     out_base=out_base,
                     quiet=True,
+                    trace_enabled=trace_enabled,
+                    level_override=level_override,
                 )
                 if file_metrics is not None:
                     sr = float(file_metrics.get("success_rate") or 0)
@@ -944,6 +964,8 @@ def _run_single(
     num_episodes: Optional[int],
     max_steps: Optional[int],
     out_base: Optional[str],
+    trace_enabled: bool = False,
+    level_override: Optional[int] = None,
 ) -> None:
     """Default entry: run difficulties sequentially with full per-run output."""
     cfg_episodes = int(getattr(cfg.eval, "num_episodes", 0)) or None
@@ -966,6 +988,8 @@ def _run_single(
                 num_episodes=num_episodes,
                 max_steps=max_steps,
                 out_base=out_base,
+                trace_enabled=trace_enabled,
+                level_override=level_override,
             )
             all_results.append((diff, path, metrics))
         except Exception as exc:
@@ -1033,7 +1057,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--difficulty", default="all",
-        choices=["easy", "medium", "hard", "all"],
+        choices=["easy", "medium", "hard", "very-hard", "all"],
         help="TreasureHunter difficulty (default: all)",
     )
     parser.add_argument(
@@ -1048,6 +1072,14 @@ def main() -> int:
         "--out-json", default=None,
         help="Base output directory for JSONL/JSON (default: runs/)",
     )
+    parser.add_argument(
+        "--trace", action="store_true",
+        help="Enable detailed reasoning trace logging (richer reason field, per-step memory snapshots, event log)",
+    )
+    parser.add_argument(
+        "--level", type=int, default=None,
+        help="Override TreasureHunter level (1-30) instead of using the difficulty default",
+    )
     args = parser.parse_args()
 
     cfg_path = Path(args.config)
@@ -1057,13 +1089,15 @@ def main() -> int:
     cfg = OmegaConf.load(str(cfg_path))
 
     difficulties = (
-        ["easy", "medium", "hard"] if args.difficulty == "all" else [args.difficulty]
+        ["easy", "medium", "hard", "very-hard"] if args.difficulty == "all" else [args.difficulty]
     )
 
     if args.batch:
-        _run_batch(cfg, difficulties, args.num_episodes, args.max_steps, args.out_json)
+        _run_batch(cfg, difficulties, args.num_episodes, args.max_steps, args.out_json,
+                   trace_enabled=args.trace, level_override=args.level)
     else:
-        _run_single(cfg, difficulties, args.num_episodes, args.max_steps, args.out_json)
+        _run_single(cfg, difficulties, args.num_episodes, args.max_steps, args.out_json,
+                    trace_enabled=args.trace, level_override=args.level)
 
     return 0
 
