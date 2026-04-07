@@ -62,12 +62,23 @@ python evaluator_textworld.py --batch --difficulty easy
 ```
 Change experiment settings in `config/config_textworld.yaml`.
 
-**TextWorld Coin Collector (batch):**
+**TextWorld Coin Collector:**
 
 > You must `cd` into the experiment folder first before running.
 
 ```bash
 cd coin_collector_exp
-python run_tw_batch.py --config config/coin_collector.yaml --levels L1
+
+# Full grid — all providers x memory types x levels (providers run in parallel)
+python run_tw_batch.py
+
+# Subset: specific levels, memory types, and provider
+python run_tw_batch.py --levels L1,L5,L10 --memory-types baseline,trajectory --providers openai --workers 4
+
+# More episodes for tighter confidence intervals
+python run_tw_batch.py --episodes 20
+
+# Custom output directory
+python run_tw_batch.py --output-dir results/experiment_01
 ```
 Change experiment settings in `coin_collector_exp/config/coin_collector.yaml`.
