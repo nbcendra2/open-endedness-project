@@ -1,4 +1,4 @@
-# Memory Mechanisms for LLM Agents
+# Fact Compression and Adaptive Forgetting for LLM Agents in Sparse Embodied Environments
 
 ## Quick Start
 
