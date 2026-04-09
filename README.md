@@ -1,4 +1,4 @@
-# Fact Compression and Adaptive Forgetting for LLM Agents in Sparse Embodied Environments
+# Fact Compression, Predictive Shielding, and Dormant Reactivation: Adaptive Memory for Sparse Embodied LLM Agents
 
 ## Quick Start
 
